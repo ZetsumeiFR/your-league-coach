@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 import { setImmediate as drainTurn } from "node:timers/promises";
 import { collectorState } from "@your-league-coach/db/schema/lol";
 import { checkPatches } from "../../src/patch";
-import { RiotAuthError } from "../../src/riot/errors";
+import { RiotClient, SOLO_LEAGUE_QUEUE } from "../../src/riot/client";
+import { RiotRateLimiter } from "../../src/riot/rate-limiter";
 import { runScheduler } from "../../src/scheduler";
 import { withTestDatabase } from "../test-database";
 
@@ -103,6 +104,7 @@ test.skipIf(!process.env.DATABASE_URL)(
           },
         },
         riot: {
+          crawlStop: new AbortController().signal,
           seed: () => Promise.resolve(),
           crawl: () => {
             crawls += 1;
@@ -146,26 +148,78 @@ test.skipIf(!process.env.DATABASE_URL)(
   }
 );
 
-function* advanceDays(clock: SchedulerClock) {
+function* advanceDays(clock: SchedulerClock, syncSeed: boolean) {
   for (let at = 30 * MINUTE; at <= 2 * DAY; at += 30 * MINUTE) {
     clock.advanceTo(at);
+    if (syncSeed && at % DAY === 0) {
+      yield clock.pending(at + DAY);
+    }
     yield drainTurn();
   }
 }
 
-for (const mode of ["healthy", 401, 403, "pending"] as const) {
+const scenarios = [
+  { mode: "healthy" },
+  { mode: "pending" },
+  { mode: "crawl", status: 401 },
+  { mode: "crawl", status: 403 },
+  { mode: "seed", status: 401 },
+  { mode: "seed", status: 403 },
+] as const;
+
+for (const scenario of scenarios) {
+  const { mode } = scenario;
+  const status = "status" in scenario ? scenario.status : undefined;
   test.skipIf(!process.env.DATABASE_URL)(
-    `daily seed runs at hours 0, 24, and 48 when crawl is ${mode}`,
+    `daily seed and maintenance continue: ${mode} ${status ?? ""}`,
     async () => {
       await withTestDatabase(async (db) => {
         const clock = new SchedulerClock();
         const stop = new AbortController();
         const stoppedCrawl = Promise.withResolvers<void>();
-        const heldCrawl = Promise.withResolvers<boolean>();
+        const heldHistory = Promise.withResolvers<Response>();
+        const seedDenial = Promise.withResolvers<Response>();
+        const historyEntered = Promise.withResolvers<void>();
         const starts: number[] = [];
-        const auth = mode === 401 || mode === 403;
+        const history: number[] = [];
+        let seedRequests = 0;
         let crawls = 0;
         let aggregates = 0;
+        let patches = 0;
+        let retentions = 0;
+        const riot = new RiotClient({
+          apiKey: "fixture-key",
+          platform: "euw1",
+          region: "europe",
+          limiter: new RiotRateLimiter({
+            now: clock.now,
+            sleep: (ms, signal) => clock.wait(ms, signal ?? stop.signal),
+          }),
+          signal: stop.signal,
+          transport: (url) => {
+            if (url.pathname.startsWith("/lol/league-exp/")) {
+              seedRequests += 1;
+              if (mode === "seed") {
+                return seedRequests === 1
+                  ? seedDenial.promise
+                  : Promise.resolve(new Response(null, { status }));
+              }
+              return Promise.resolve(Response.json([]));
+            }
+            history.push(clock.now());
+            historyEntered.resolve();
+            if (mode === "crawl") {
+              return Promise.resolve(new Response(null, { status }));
+            }
+            if (
+              (mode === "seed" || mode === "pending") &&
+              history.length === 1
+            ) {
+              return heldHistory.promise;
+            }
+            return Promise.resolve(Response.json([]));
+          },
+        });
         const running = runScheduler({
           db,
           clock,
@@ -176,54 +230,86 @@ for (const mode of ["healthy", 401, 403, "pending"] as const) {
             }
           },
           jobs: {
-            patch: () => Promise.resolve(),
-            retention: () => Promise.resolve(),
+            patch: () => {
+              patches += 1;
+              return Promise.resolve();
+            },
+            retention: () => {
+              retentions += 1;
+              return Promise.resolve();
+            },
             aggregate: () => {
               aggregates += 1;
               return Promise.resolve();
             },
           },
           riot: {
-            seed: () => {
+            crawlStop: riot.crawlStop,
+            seed: async () => {
               starts.push(clock.now());
-              return Promise.resolve();
+              await riot.leagueExpEntries(SOLO_LEAGUE_QUEUE, "EMERALD", "I", 1);
             },
-            crawl: () => {
+            crawl: async () => {
               crawls += 1;
-              if (auth) {
-                return Promise.reject(new RiotAuthError(mode));
+              await riot.matchIdsByPuuid("fixture-puuid", { queue: 420 });
+              if (mode === "seed") {
+                // An in-flight window would fetch a second page after the
+                // first returns if the client did not guard request admission.
+                await riot.matchIdsByPuuid("fixture-puuid", {
+                  queue: 420,
+                  start: 100,
+                });
               }
-              return mode === "pending"
-                ? heldCrawl.promise
-                : Promise.resolve(false);
+              return false;
             },
           },
         });
         try {
           await clock.pending(30 * MINUTE);
-          if (auth) {
+          await historyEntered.promise;
+          if (mode === "seed") {
+            seedDenial.resolve(new Response(null, { status }));
+            await clock.pending(DAY);
+            expect(await db.select().from(collectorState)).toMatchObject([
+              {
+                lastError: `Riot API authentication failed (HTTP ${status})`,
+                lastErrorAt: new Date(0),
+              },
+            ]);
+            heldHistory.resolve(Response.json([]));
+          }
+          if (status !== undefined) {
             await stoppedCrawl.promise;
           }
           if (mode === "healthy") {
             await clock.pending(1000);
           }
-          for await (const _ of advanceDays(clock)) {
+          for await (const _ of advanceDays(clock, mode === "seed")) {
             // Let each set of due jobs finish before moving to the next deadline.
           }
           expect(starts).toEqual([0, DAY, 2 * DAY]);
+          expect(seedRequests).toBe(3);
           expect(aggregates).toBe(97);
-          expect(crawls).toBe(mode === "healthy" ? 97 : 1);
-          if (auth) {
+          expect(patches).toBe(49);
+          expect(retentions).toBe(49);
+          if (mode === "healthy") {
+            expect(crawls).toBeGreaterThan(1);
+          } else {
+            expect(crawls).toBe(1);
+            expect(history).toEqual([0]);
+          }
+          if (status !== undefined) {
             expect(await db.select().from(collectorState)).toMatchObject([
               {
-                lastError: `Riot API authentication failed (HTTP ${mode})`,
-                lastErrorAt: new Date(0),
+                lastError: `Riot API authentication failed (HTTP ${status})`,
+                lastErrorAt: new Date(mode === "seed" ? 2 * DAY : 0),
               },
             ]);
           }
         } finally {
           stop.abort();
-          heldCrawl.resolve(false);
+          heldHistory.resolve(Response.json([]));
+          seedDenial.resolve(Response.json([]));
           await running;
         }
       });

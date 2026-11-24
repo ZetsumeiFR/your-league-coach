@@ -12,7 +12,7 @@ const IDLE_CRAWL_MS = 1000;
 const CRAWL_RETRY_MS = MINUTE_MS;
 
 export type Job = "patch" | "aggregate" | "retention" | "seed" | "crawl";
-type JobResult = "done" | "idle" | "failed" | "auth";
+type JobResult = "done" | "idle" | "failed";
 type Work = () => Promise<unknown>;
 
 export class JobInterruptedError extends Error {}
@@ -69,6 +69,7 @@ interface SchedulerOptions {
   readonly log: (message: string) => void;
   readonly riot?: Readonly<{
     crawl: () => Promise<boolean>;
+    crawlStop: AbortSignal;
     seed: Work;
   }>;
   readonly signal: AbortSignal;
@@ -92,7 +93,9 @@ const runJob = async (
     }
     return "done";
   } catch (error) {
-    if (!signal.aborted) {
+    // A real denial still needs its heartbeat when the same response stopped
+    // the crawl lane. Cancellation caused by another caller is not a new error.
+    if (!signal.aborted || error instanceof RiotAuthError) {
       log(jobErrorMessage(job, error));
       try {
         await recordJobError(db, job, error, clock.now);
@@ -100,7 +103,7 @@ const runJob = async (
         log("Collector error heartbeat could not be written");
       }
     }
-    return error instanceof RiotAuthError ? "auth" : "failed";
+    return "failed";
   }
 };
 
@@ -134,24 +137,24 @@ function* cycles<T>(cycle: () => Promise<T>, signal: AbortSignal) {
 
 const runCrawl = async (
   options: SchedulerOptions,
-  crawl: () => Promise<boolean>
+  { crawl, crawlStop }: NonNullable<SchedulerOptions["riot"]>
 ) => {
-  const { clock = systemClock, log, signal } = options;
+  const { clock = systemClock, log } = options;
+  const signal = AbortSignal.any([options.signal, crawlStop]);
   const cycle = async () => {
-    const crawled = await runJob(options, "crawl", crawl);
+    const crawled = await runJob({ ...options, signal }, "crawl", crawl);
     if (!signal.aborted && (crawled === "failed" || crawled === "idle")) {
       await clock.wait(
         crawled === "idle" ? IDLE_CRAWL_MS : CRAWL_RETRY_MS,
         signal
       );
     }
-    return crawled;
   };
-  for await (const result of cycles(cycle, signal)) {
-    if (result === "auth") {
-      log("Riot crawl stopped until restart");
-      return;
-    }
+  for await (const _ of cycles(cycle, signal)) {
+    // Wait for the admitted request before leaving the crawl lane.
+  }
+  if (crawlStop.aborted) {
+    log("Riot crawl stopped until restart");
   }
 };
 
@@ -175,7 +178,7 @@ export const runScheduler = async (options: SchedulerOptions) => {
           periodic(options, SEED_INTERVAL_MS, () =>
             runJob(options, "seed", riot.seed)
           ),
-          runCrawl(options, riot.crawl),
+          runCrawl(options, riot),
         ]
       : []),
   ]);

@@ -171,10 +171,14 @@ const runOnce = async (
 };
 
 const scheduledRiot = (work: RiotWork) => {
-  const { db, riot, apiKey } = work;
+  const { db, riot, apiKey, signal } = work;
+  const crawlSignal = signal
+    ? AbortSignal.any([signal, riot.crawlStop])
+    : riot.crawlStop;
   const fingerprint = seedKeyFingerprint(apiKey);
   const nextQueue = createCrawlQueueRotation();
   return {
+    crawlStop: riot.crawlStop,
     seed: () =>
       seedPlayersForKey(db, riot, apiKey, { force: true, sample: false }),
     crawl: async () => {
@@ -188,7 +192,11 @@ const scheduledRiot = (work: RiotWork) => {
       if ((await readStatWindow(db)).length === 0) {
         return false;
       }
-      const result = await crawlWindow(work, nextQueue());
+      crawlSignal.throwIfAborted();
+      const result = await crawlWindow(
+        { ...work, signal: crawlSignal },
+        nextQueue()
+      );
       return result.hasSeed;
     },
   };
