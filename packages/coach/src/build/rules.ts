@@ -10,7 +10,7 @@ import {
 import { ENEMY_BUILD_THRESHOLDS, MAX_SITUATIONAL_ITEMS } from "../constants";
 import type { PatchCounts } from "../stats/blend";
 import type { BuildStatRow } from "./base";
-import { defensiveCore } from "./frontline";
+import { defensiveCore, swapCore } from "./frontline";
 import { buildPrior } from "./ranking";
 import {
   AD_ANTI_HEAL,
@@ -164,25 +164,6 @@ function antiHealFallback(
     return TANK_ANTI_HEAL;
   }
   return player.info.magic > player.info.attack ? AP_ANTI_HEAL : AD_ANTI_HEAL;
-}
-
-function swapCore(
-  build: BuildRecommendation,
-  core: ItemId[]
-): BuildRecommendation {
-  const removed = build.core.filter((id) => !core.includes(id));
-  const added = core.filter((id) => !build.core.includes(id));
-  return {
-    ...build,
-    core,
-    situational: build.situational.filter((id) => !core.includes(id)),
-    adjustments: [
-      ...build.adjustments,
-      ...added.map((id, index) =>
-        adjustment("frontline_missing", id, removed[index])
-      ),
-    ],
-  };
 }
 
 const thresholds = ENEMY_BUILD_THRESHOLDS;

@@ -6,6 +6,7 @@ node_modules
 # Build outputs
 dist
 build
+target/
 !/packages/coach/src/build/
 !/packages/coach/test/build/
 *.tsbuildinfo

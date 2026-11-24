@@ -1,4 +1,5 @@
 import type {
+  BuildAdjustment,
   BuildRecommendation,
   ItemId,
 } from "@your-league-coach/lol-data/types";
@@ -15,6 +16,32 @@ import {
   preferredProfileItem,
   type RuleItems,
 } from "./rule-items";
+
+export function swapCore(
+  build: BuildRecommendation,
+  core: ItemId[]
+): BuildRecommendation {
+  const adjustments: BuildAdjustment[] = [...build.adjustments];
+  // Work from right to left so a moved item can't shadow the original slot
+  // of the same item when a consumer replays a replacement by ID.
+  for (const [index, replaced] of [...build.core.entries()].reverse()) {
+    const added = core[index];
+    if (added !== undefined && replaced !== added) {
+      adjustments.push({
+        ruleId: "frontline_missing",
+        reasonCode: "frontline_missing",
+        replaced,
+        added,
+      });
+    }
+  }
+  return {
+    ...build,
+    core,
+    situational: build.situational.filter((id) => !core.includes(id)),
+    adjustments,
+  };
+}
 
 export function defensiveCore(
   build: BuildRecommendation,

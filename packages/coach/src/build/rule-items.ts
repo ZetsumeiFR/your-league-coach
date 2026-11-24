@@ -17,14 +17,17 @@ export const AD_ANTI_HEAL = [3123, 6609] as const;
 export const AP_ANTI_HEAL = [3165] as const;
 export const TANK_ANTI_HEAL = [3076] as const;
 
-// The fixture uses both the passive name and a shorter marked-up keyword.
-const WOUNDS_PATTERN =
-  /grievous wounds|<keyword>(?:\d+%\s*)?wounds<\/keyword>|blessures graves|hémorragie/iu;
+const TOOLTIP_MARKUP_OR_SPACE = /<[^>]*>|\s+/gu;
+// Some tooltips use only the short percentage effect, e.g. "40% Wounds".
+const WOUNDS_PATTERN = /grievouswounds|\d+%wounds|blessuresgraves|hémorragie/iu;
+
+function mentionsWounds(text: string): boolean {
+  return WOUNDS_PATTERN.test(text.replace(TOOLTIP_MARKUP_OR_SPACE, ""));
+}
 
 export function isAntiHeal(item: Item): boolean {
   return (
-    item.tags.includes("GrievousWounds") ||
-    WOUNDS_PATTERN.test(item.description ?? "")
+    item.tags.some(mentionsWounds) || mentionsWounds(item.description ?? "")
   );
 }
 
