@@ -1,0 +1,4 @@
+# Automatic HTTPS (Let's Encrypt; Caddy's internal CA when COACH_DOMAIN=localhost).
+{$COACH_DOMAIN} {
+	reverse_proxy server:3000
+}

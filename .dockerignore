@@ -3,6 +3,9 @@
 
 **/dist
 **/build
+# packages/coach keeps source modules under src/build/
+!packages/coach/src/build
+!packages/coach/test/build
 **/.next
 **/.nuxt
 **/.output
