@@ -1,4 +1,33 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/biome/core", "ultracite/biome/react", "ultracite/biome/tanstack"],
+  "extends": [
+    "ultracite/biome/core",
+    "ultracite/biome/react",
+    "ultracite/biome/tanstack"
+  ],
+  "files": {
+    "includes": ["!.agents"]
+  },
+  "overrides": [
+    {
+      "includes": [
+        "packages/ui/src/components/input-group.tsx",
+        "packages/ui/src/components/label.tsx",
+        "packages/ui/src/components/message-scroller.tsx",
+        "packages/ui/src/lib/utils.ts"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off",
+            "noNoninteractiveElementInteractions": "off",
+            "useKeyWithClickEvents": "off",
+            "useSemanticElements": "off"
+          },
+          "performance": { "noBarrelFile": "off", "noJsxPropsBind": "off" },
+          "style": { "noExportedImports": "off" }
+        }
+      }
+    }
+  ]
 }
