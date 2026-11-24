@@ -104,6 +104,43 @@ export const playerPoolEntrySchema = z.object({
 });
 export type PlayerPoolEntry = z.infer<typeof playerPoolEntrySchema>;
 
+const MAX_POOL_ENTRIES = 200;
+const MAX_ALLIES = 4;
+const MAX_ENEMIES = 5;
+const MAX_OWNED_ITEMS = 10;
+const MAX_ENEMY_ITEMS = 50;
+
+const requestChampionIdSchema = z.number().int().positive();
+
+/** Request envelopes of the coach API. Unknown keys (names, puuids) are stripped by zod. */
+export const draftInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  draft: draftStateSchema,
+  pool: z.array(playerPoolEntrySchema).max(MAX_POOL_ENTRIES),
+});
+export type DraftInput = z.infer<typeof draftInputSchema>;
+
+export const buildInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  championId: requestChampionIdSchema,
+  allies: z.array(requestChampionIdSchema).max(MAX_ALLIES),
+  enemies: z.array(requestChampionIdSchema).max(MAX_ENEMIES),
+});
+export type BuildInput = z.infer<typeof buildInputSchema>;
+
+export const nextItemsInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  championId: requestChampionIdSchema,
+  ownedItems: z.array(itemIdSchema).max(MAX_OWNED_ITEMS),
+  enemyChampions: z.array(requestChampionIdSchema).max(MAX_ENEMIES),
+  /** Every visible enemy item, flattened across enemies. */
+  enemyItems: z.array(itemIdSchema).max(MAX_ENEMY_ITEMS),
+});
+export type NextItemsInput = z.infer<typeof nextItemsInputSchema>;
+
 /** Number of games behind a blended statistic, per patch. */
 export const blendSourcesSchema = z.object({
   currentGames: z.number().int().nonnegative(),
@@ -196,3 +233,33 @@ export const buildRecommendationSchema = z.object({
   sources: blendSourcesSchema,
 });
 export type BuildRecommendation = z.infer<typeof buildRecommendationSchema>;
+
+export const nextItemSchema = z.object({
+  itemId: itemIdSchema,
+  reasons: z.array(reasonCodeSchema),
+});
+export type NextItem = z.infer<typeof nextItemSchema>;
+
+export const nextItemsSchema = z.object({
+  patch: z.string(),
+  sources: blendSourcesSchema,
+  items: z.array(nextItemSchema),
+});
+export type NextItems = z.infer<typeof nextItemsSchema>;
+
+const gameCountSchema = z.number().int().nonnegative();
+
+export const coachMetaSchema = z.object({
+  /** Null until the collector has detected a patch. */
+  patch: z.string().nullable(),
+  ddragonVersion: z.string().nullable(),
+  /** Matches behind the current patch's aggregates, per stats group. */
+  statsGroups: z.object({ sr: gameCountSchema, aram: gameCountSchema }),
+  collector: z.object({
+    lastCrawlAt: z.date().nullable(),
+    lastAggregateAt: z.date().nullable(),
+    lastError: z.string().nullable(),
+    lastErrorAt: z.date().nullable(),
+  }),
+});
+export type CoachMeta = z.infer<typeof coachMetaSchema>;

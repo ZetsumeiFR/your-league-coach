@@ -5,6 +5,7 @@ import {
   RANKED_ENEMY_CHAMPION_IDS,
   RANKED_LOCAL_CHAMPION_ID,
   RANKED_MY_TEAM_BAN_IDS,
+  RANKED_PICKABLE_MIDDLE_IDS,
   RANKED_THEIR_TEAM_BAN_IDS,
 } from "../ids";
 import { summoner } from "./accounts";
@@ -26,6 +27,10 @@ export const rankedChampionIds = [
   ...RANKED_ENEMY_CHAMPION_IDS,
   ...RANKED_MY_TEAM_BAN_IDS,
   ...RANKED_THEIR_TEAM_BAN_IDS,
+];
+export const rankedPickableChampionIds = [
+  ...rankedChampionIds,
+  ...RANKED_PICKABLE_MIDDLE_IDS,
 ];
 
 const event = (uri: string, data: unknown) => ({
