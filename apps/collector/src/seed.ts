@@ -120,11 +120,23 @@ export const seedPlayersForKey = async (
   }
   const seeds = await collectSeeds(riot, sample);
   await db.transaction(async (tx) => {
+    await tx
+      .select({ id: collectorState.id })
+      .from(collectorState)
+      .for("update");
     for await (const result of seedWrites(tx, seeds)) {
       // The transaction commits the fingerprint only after all batches succeed.
       if (result.command !== "INSERT") {
         throw new TypeError("Unexpected seed write result");
       }
+    }
+    if (!sample) {
+      // Unobserved players are no longer eligible, even when a division hit
+      // its page cap. A partial QA sample cannot retire the production roster.
+      const observed = JSON.stringify(seeds.map(({ puuid }) => puuid));
+      await tx.delete(seedPlayers).where(sql`${seedPlayers.puuid} not in (
+        select jsonb_array_elements_text(${observed}::jsonb)
+      )`);
     }
     await tx
       .update(collectorState)

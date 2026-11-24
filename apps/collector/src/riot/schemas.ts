@@ -8,6 +8,25 @@ export const leagueEntriesSchema = z.array(
 export const apexLeagueSchema = z.object({ entries: leagueEntriesSchema });
 export const matchIdsSchema = z.array(id);
 
+const rune = z.object({ perk: z.int().positive() });
+const runePageSchema = z.object({
+  statPerks: z.strictObject({
+    defense: z.int().positive(),
+    flex: z.int().positive(),
+    offense: z.int().positive(),
+  }),
+  styles: z.tuple([
+    z.object({
+      style: z.int().positive(),
+      selections: z.array(rune).length(4),
+    }),
+    z.object({
+      style: z.int().positive(),
+      selections: z.array(rune).length(2),
+    }),
+  ]),
+});
+
 const participantSchema = z.object({
   participantId: z.int(),
   championId: z.int(),
@@ -24,18 +43,11 @@ const participantSchema = z.object({
   item4: z.int().nonnegative(),
   item5: z.int().nonnegative(),
   item6: z.int().nonnegative(),
-  perks: z.object({
-    statPerks: z.object({
-      defense: z.int(),
-      flex: z.int(),
-      offense: z.int(),
-    }),
-    styles: z.array(
-      z.object({
-        style: z.int(),
-        selections: z.array(z.object({ perk: z.int() })),
-      })
-    ),
+  // Preserve validated match metadata, so the crawler can record a permanent
+  // rune-page skip instead of retrying the entire window on a payload error.
+  perks: z.unknown().transform((value) => {
+    const result = runePageSchema.safeParse(value);
+    return result.success ? result.data : null;
   }),
 });
 

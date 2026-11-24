@@ -1,16 +1,23 @@
 import type { Database } from "@your-league-coach/db";
-import { matches, matchParticipants } from "@your-league-coach/db/schema/lol";
+import {
+  collectorState,
+  matches,
+  matchParticipants,
+  seedPlayers,
+} from "@your-league-coach/db/schema/lol";
 import type { Item } from "@your-league-coach/lol-data/ddragon";
 import { classifyItem } from "@your-league-coach/lol-data/items";
 import { toPatch } from "@your-league-coach/lol-data/patch";
 import { queueToStatsGroup } from "@your-league-coach/lol-data/queues";
 import { ROLES } from "@your-league-coach/lol-data/roles";
+import { eq } from "drizzle-orm";
 import { RiotPayloadError } from "./riot/errors";
 import type { RiotMatch, RiotTimeline } from "./riot/schemas";
 
 // Ignore remakes and isolate purchases from the opening shopping window.
 export const MIN_MATCH_DURATION_S = 300;
 const STARTER_WINDOW_MS = 60_000;
+const MAX_COMPLETED_ITEMS = 6;
 const PARTICIPANT_COUNT = 10;
 type Event = RiotTimeline["info"]["frames"][number]["events"][number];
 type Participant = RiotMatch["info"]["participants"][number];
@@ -25,18 +32,25 @@ const removePurchase = (purchases: Purchase[], id: number) => {
 };
 
 const replayPurchases = (events: readonly Event[]) => {
+  const history: Purchase[] = [];
   const purchases: Purchase[] = [];
   const sold: Purchase[] = [];
+  const undone = new Set<Purchase>();
   for (const event of events) {
     if (event.type === "ITEM_PURCHASED") {
-      purchases.push({ id: event.itemId, timestamp: event.timestamp });
+      const purchase = { id: event.itemId, timestamp: event.timestamp };
+      history.push(purchase);
+      purchases.push(purchase);
     } else if (event.type === "ITEM_SOLD") {
       const removed = removePurchase(purchases, event.itemId);
       if (removed) {
         sold.push(removed);
       }
     } else if (event.type === "ITEM_UNDO") {
-      removePurchase(purchases, event.beforeId);
+      const cancelled = removePurchase(purchases, event.beforeId);
+      if (cancelled) {
+        undone.add(cancelled);
+      }
       if (event.afterId > 0) {
         const restored = removePurchase(sold, event.afterId);
         if (restored) {
@@ -45,7 +59,10 @@ const replayPurchases = (events: readonly Event[]) => {
       }
     }
   }
-  return purchases.sort((a, b) => a.timestamp - b.timestamp);
+  return {
+    history: history.filter((purchase) => !undone.has(purchase)),
+    retained: new Set(purchases),
+  };
 };
 
 const parseBuild = (
@@ -55,7 +72,9 @@ const parseBuild = (
   const itemBuildOrder: number[] = [];
   const starterItems: number[] = [];
   let bootsId: number | null = null;
-  for (const { id, timestamp } of replayPurchases(events)) {
+  const { history, retained } = replayPurchases(events);
+  for (const purchase of history) {
+    const { id, timestamp } = purchase;
     if (timestamp < STARTER_WINDOW_MS) {
       starterItems.push(id);
     }
@@ -64,15 +83,37 @@ const parseBuild = (
     if (kind === "boots") {
       bootsId = id;
     }
-    if (kind === "legendary" || kind === "boots") {
+    // Keep the first six completed purchases remaining after undos and sales.
+    if (
+      retained.has(purchase) &&
+      itemBuildOrder.length < MAX_COMPLETED_ITEMS &&
+      (kind === "legendary" || kind === "boots")
+    ) {
       itemBuildOrder.push(id);
     }
   }
   return { itemBuildOrder, starterItems, bootsId };
 };
 
+export const skipMalformedRunePage = async (
+  db: Database,
+  match: RiotMatch,
+  now = Date.now
+) => {
+  if (match.info.participants.every(({ perks }) => perks !== null)) {
+    return false;
+  }
+  await db.update(collectorState).set({
+    lastError: "Skipped match: malformed rune page",
+    lastErrorAt: new Date(now()),
+  });
+  return true;
+};
+
 const parseParticipant = (
-  participant: Participant,
+  participant: Participant & {
+    readonly perks: NonNullable<Participant["perks"]>;
+  },
   matchId: string,
   isAram: boolean,
   events: readonly Event[],
@@ -104,9 +145,11 @@ const parseParticipant = (
     ],
     ...parseBuild(events, items),
     skillOrder,
-    summonerSpells: [participant.summoner1Id, participant.summoner2Id],
-    perkPrimaryStyle: perks.styles[0]?.style ?? 0,
-    perkSubStyle: perks.styles[1]?.style ?? 0,
+    summonerSpells: [participant.summoner1Id, participant.summoner2Id].sort(
+      (a, b) => a - b
+    ),
+    perkPrimaryStyle: perks.styles[0].style,
+    perkSubStyle: perks.styles[1].style,
     perks: perks.styles.flatMap(({ selections }) =>
       selections.map(({ perk }) => perk)
     ),
@@ -152,6 +195,23 @@ export const parseMatch = ({
   const events = timeline.info.frames
     .flatMap((frame) => frame.events)
     .sort((a, b) => a.timestamp - b.timestamp);
+  const parsedParticipants: (typeof matchParticipants.$inferInsert)[] = [];
+  for (const participant of participants) {
+    if (!participant.perks) {
+      return null;
+    }
+    parsedParticipants.push(
+      parseParticipant(
+        { ...participant, perks: participant.perks },
+        matchId,
+        statsGroup === "aram",
+        events.filter(
+          (event) => event.participantId === participant.participantId
+        ),
+        items
+      )
+    );
+  }
   return {
     match: {
       matchId,
@@ -162,29 +222,37 @@ export const parseMatch = ({
       gameCreation: new Date(gameCreation),
       durationS: gameDuration,
     },
-    participants: participants.map((participant) =>
-      parseParticipant(
-        participant,
-        matchId,
-        statsGroup === "aram",
-        events.filter(
-          (event) => event.participantId === participant.participantId
-        ),
-        items
-      )
-    ),
+    participants: parsedParticipants,
   };
 };
 
 export const ingestMatch = async (
   db: Database,
-  input: IngestInput
+  input: IngestInput,
+  {
+    seedId,
+    now = Date.now,
+  }: { readonly seedId?: number; readonly now?: () => number } = {}
 ): Promise<boolean> => {
+  if (await skipMalformedRunePage(db, input.match, now)) {
+    return false;
+  }
   const parsed = parseMatch(input);
   if (!parsed) {
     return false;
   }
   return await db.transaction(async (tx) => {
+    if (seedId !== undefined) {
+      const [seed] = await tx
+        .select({ tier: seedPlayers.tier })
+        .from(seedPlayers)
+        .where(eq(seedPlayers.id, seedId))
+        .for("share");
+      if (!seed) {
+        return false;
+      }
+      parsed.match.seedTier = seed.tier;
+    }
     const [inserted] = await tx
       .insert(matches)
       .values(parsed.match)

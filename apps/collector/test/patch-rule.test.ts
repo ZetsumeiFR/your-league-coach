@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { collectorState, patches } from "@your-league-coach/db/schema/lol";
-import { chooseCrawlQueue, historyStartTime } from "../src/crawl";
+import { createCrawlQueueRotation, historyStartTime } from "../src/crawl";
 import { checkPatches, recognizePatch } from "../src/patch";
 import { withTestDatabase } from "./test-database";
 
@@ -47,15 +47,15 @@ test("uses a 28-day backfill only when the selected queue has no watermark", () 
   expect(historyStartTime(3_000_000, new Date(1_000_000))).toBe(1000);
 });
 
-test("allocates every percentile to queue shares 60/20/10/10", () => {
-  expect(
-    Array.from({ length: 100 }, (_, n) =>
-      chooseCrawlQueue(() => (n + 0.5) / 100)
-    )
-  ).toEqual([
-    ...Array.from({ length: 60 }, () => 420 as const),
-    ...Array.from({ length: 20 }, () => 450 as const),
-    ...Array.from({ length: 10 }, () => 440 as const),
-    ...Array.from({ length: 10 }, () => 400 as const),
+test("smoothly rotates all four queues and preserves 60/20/10/10 shares", () => {
+  const next = createCrawlQueueRotation();
+  const windows = Array.from({ length: 1000 }, () => next());
+  expect(windows.slice(0, 10)).toEqual([
+    420, 450, 420, 420, 440, 420, 400, 420, 450, 420,
   ]);
+  expect(
+    [420, 450, 440, 400].map(
+      (queue) => windows.filter((id) => id === queue).length
+    )
+  ).toEqual([600, 200, 100, 100]);
 });

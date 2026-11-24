@@ -1,8 +1,87 @@
 import { expect, test } from "bun:test";
+import { parseItems } from "@your-league-coach/lol-data/ddragon";
+import { file } from "bun";
 import { parseMatch } from "../src/ingest";
 import { RiotPayloadError } from "../src/riot/errors";
 import { timelineSchema } from "../src/riot/schemas";
 import { exampleItems, item, recorded } from "./match-fixtures";
+
+test("keeps sold opening items and boots and stores the recorded spell pair sorted", async () => {
+  const { match, timeline } = await recorded("SR");
+  const catalog = await file(
+    new URL(
+      "../../../packages/lol-data/test/fixtures/item.en_US.json",
+      import.meta.url
+    )
+  ).json();
+  const items = new Map(parseItems(catalog).map((entry) => [entry.id, entry]));
+  const parsed = parseMatch({ match, timeline, items, seedTier: "EMERALD" });
+  const players = new Map(
+    parsed?.participants.map((participant) => [
+      participant.championId,
+      participant,
+    ])
+  );
+  const player = (id: number) =>
+    players.get(
+      match.info.participants.find((p) => p.participantId === id)?.championId ??
+        0
+    );
+  expect(player(3)?.starterItems).toEqual([1056, 2003, 2003, 3340]);
+  expect(player(6)?.bootsId).toBe(3158);
+  const reversed = match.info.participants.find(
+    (p) => p.summoner1Id > p.summoner2Id
+  );
+  if (!reversed) {
+    throw new TypeError("Recorded fixture must include a reversed spell pair");
+  }
+  expect(player(reversed.participantId)?.summonerSpells).toEqual([
+    reversed.summoner2Id,
+    reversed.summoner1Id,
+  ]);
+});
+
+test("keeps the first six retained completed purchases, not the latest six", async () => {
+  const { match } = await recorded("SR");
+  const purchases = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const timeline = timelineSchema.parse({
+    metadata: match.metadata,
+    info: {
+      frames: [
+        {
+          events: [
+            ...purchases.map((itemId) => ({
+              type: "ITEM_PURCHASED",
+              timestamp: 1000 * itemId,
+              participantId: 1,
+              itemId,
+            })),
+            {
+              type: "ITEM_UNDO",
+              timestamp: 10_000,
+              participantId: 1,
+              beforeId: 3,
+              afterId: 0,
+            },
+            {
+              type: "ITEM_SOLD",
+              timestamp: 11_000,
+              participantId: 1,
+              itemId: 2,
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const items = new Map(purchases.map((id) => [id, item(id)]));
+  expect(
+    parseMatch({ match, timeline, items, seedTier: "EMERALD" })?.participants[0]
+  ).toMatchObject({
+    itemBuildOrder: [1, 4, 5, 6, 7, 8],
+    starterItems: [1, 2, 4, 5, 6, 7, 8, 9],
+  });
+});
 
 test("parses ten SR participants with all and only their normal level-ups and completed items", async () => {
   const { match, timeline } = await recorded("SR");

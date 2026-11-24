@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   collectorState,
   matches,
+  patches,
   seedPlayers,
   seedQueueProgress,
 } from "@your-league-coach/db/schema/lol";
@@ -69,7 +70,8 @@ test.skipIf(!process.env.DATABASE_URL)(
                 metadata: { matchId: id },
                 info: {
                   ...sr.match.info,
-                  gameVersion: id === "old" ? "16.4.1.1" : "16.99.1.1",
+                  gameVersion:
+                    id === "old" ? "16.4.1.1" : sr.match.info.gameVersion,
                   gameDuration:
                     id === "remake" ? 299 : sr.match.info.gameDuration,
                 },
@@ -160,6 +162,108 @@ test.skipIf(!process.env.DATABASE_URL)(
         crawlWindow({ ...initial, now: later, riot: malformed }, 420)
       ).rejects.toBeInstanceOf(RiotPayloadError);
       expect(await db.$count(matches)).toBe(4);
+    });
+  }
+);
+
+test.skipIf(!process.env.DATABASE_URL)(
+  "promotes a provisional patch even when its first match is a remake",
+  async () => {
+    await withTestDatabase(async (db) => {
+      const { match } = await recorded("SR");
+      await db
+        .insert(seedPlayers)
+        .values({ puuid: "remake-seed", tier: "EMERALD" });
+      await checkPatches(db, async () => ["16.23.1", "16.22.1"]);
+      const requested: string[] = [];
+      const riot = setupRiot((url) => {
+        requested.push(url.pathname.split("/").at(-1) ?? "");
+        return Promise.resolve(
+          Response.json(
+            url.pathname.endsWith("/ids")
+              ? [match.metadata.matchId]
+              : {
+                  ...match,
+                  info: {
+                    ...match.info,
+                    gameVersion: "16.24.1.1",
+                    gameDuration: 299,
+                  },
+                }
+          )
+        );
+      });
+      expect(
+        await crawlWindow(
+          { db, riot, loadItems: async () => exampleItems },
+          420
+        )
+      ).toMatchObject({ inserted: 0, complete: true });
+      expect(requested).toEqual(["ids", match.metadata.matchId]);
+      expect(await db.$count(matches)).toBe(0);
+      expect(
+        (await db.select().from(patches)).filter((patch) => patch.isCurrent)
+      ).toMatchObject([
+        { patch: "16.24", provisional: true, ddragonVersion: "16.23.1" },
+      ]);
+    });
+  }
+);
+
+test.skipIf(!process.env.DATABASE_URL)(
+  "a full refresh retires absent seeds and inserts with the tier current at commit",
+  async () => {
+    await withTestDatabase(async (db) => {
+      const { match, timeline } = await recorded("SR");
+      const roster = (tier: "EMERALD" | "DIAMOND", identities: string[]) => ({
+        leagueExpEntries: async (
+          _queue: string,
+          requestedTier: string,
+          division: string,
+          page: number
+        ) =>
+          requestedTier === tier && division === "I" && page === 1
+            ? identities.map((puuid) => ({ puuid }))
+            : [],
+        apexLeague: async () => ({ entries: [] }),
+      });
+      const key = "unchanged-key";
+      await seedPlayersForKey(
+        db,
+        roster("EMERALD", ["demoted", "retained"]),
+        key
+      );
+      await seedPlayersForKey(db, roster("EMERALD", ["retained"]), key, {
+        force: true,
+      });
+      expect(
+        await db.select({ puuid: seedPlayers.puuid }).from(seedPlayers)
+      ).toEqual([{ puuid: "retained" }]);
+      await checkPatches(db, async () => ["16.23.1", "16.22.1"]);
+      const histories: string[] = [];
+      const riot = setupRiot((url) => {
+        if (url.pathname.endsWith("/ids")) {
+          histories.push(url.pathname.split("/").at(-2) ?? "");
+          return Promise.resolve(Response.json([match.metadata.matchId]));
+        }
+        return Promise.resolve(
+          Response.json(url.pathname.endsWith("/timeline") ? timeline : match)
+        );
+      });
+      const loadItems = async () => {
+        await seedPlayersForKey(db, roster("DIAMOND", ["retained"]), key, {
+          force: true,
+        });
+        return exampleItems;
+      };
+      expect(await crawlWindow({ db, riot, loadItems }, 420)).toMatchObject({
+        inserted: 1,
+        complete: true,
+      });
+      expect(histories).toEqual(["retained"]);
+      expect(await db.select({ tier: matches.seedTier }).from(matches)).toEqual(
+        [{ tier: "DIAMOND" }]
+      );
     });
   }
 );

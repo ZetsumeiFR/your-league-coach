@@ -8,7 +8,11 @@ import {
 } from "@your-league-coach/db/schema/lol";
 import type { Item } from "@your-league-coach/lol-data/ddragon";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { ingestMatch, MIN_MATCH_DURATION_S } from "./ingest";
+import {
+  ingestMatch,
+  MIN_MATCH_DURATION_S,
+  skipMalformedRunePage,
+} from "./ingest";
 import { checkPatches, recognizePatch } from "./patch";
 import type { RiotClient } from "./riot/client";
 import { RiotAuthError } from "./riot/errors";
@@ -18,25 +22,40 @@ import { seedPlayersForKey } from "./seed";
 // Start a fresh player/queue far enough back to cover two typical patches.
 const BACKFILL_SECONDS = 28 * 24 * 60 * 60;
 const HISTORY_PAGE_SIZE = 100;
-const QUEUE_WEIGHT_TOTAL = 100;
+const QUEUE_WEIGHT_TOTAL = CRAWL_QUEUE_WEIGHTS.reduce(
+  (total, [, weight]) => total + weight,
+  0
+);
 // Bound sparse histories and rejected candidates in QA, not just inserts.
 const QA_WINDOW_LIMIT = 12;
 const QA_CANDIDATE_MULTIPLIER = 6;
 const QA_PAGES_PER_WINDOW = 4;
 export type CrawlQueue = (typeof CRAWL_QUEUE_WEIGHTS)[number][0];
 
-export const chooseCrawlQueue = (
-  rng: () => number = Math.random
-): CrawlQueue => {
-  let roll = rng() * QUEUE_WEIGHT_TOTAL;
-  for (const [queue, weight] of CRAWL_QUEUE_WEIGHTS) {
-    if (roll < weight) {
-      return queue;
+// Smooth weighted round-robin. Ties go to the first queue in weight-table order.
+export const createCrawlQueueRotation = (): (() => CrawlQueue) => {
+  const scores = CRAWL_QUEUE_WEIGHTS.map(([queue, weight]) => ({
+    queue,
+    weight,
+    score: 0,
+  }));
+  return () => {
+    let [next] = scores;
+    for (const entry of scores) {
+      entry.score += entry.weight;
+      if (!next || entry.score > next.score) {
+        next = entry;
+      }
     }
-    roll -= weight;
-  }
-  return CRAWL_QUEUE_WEIGHTS[0][0];
+    if (!next) {
+      throw new TypeError("Crawl queue weights are empty");
+    }
+    next.score -= QUEUE_WEIGHT_TOTAL;
+    return next.queue;
+  };
 };
+
+const nextCrawlQueue = createCrawlQueueRotation();
 
 export const historyStartTime = (windowEnd: number, previous?: Date | null) =>
   previous
@@ -56,7 +75,6 @@ const nextSeed = async (db: Database, queue: CrawlQueue) => {
     .select({
       id: seedPlayers.id,
       puuid: seedPlayers.puuid,
-      tier: seedPlayers.tier,
       crawledUntil: seedQueueProgress.crawledUntil,
     })
     .from(seedPlayers)
@@ -78,26 +96,30 @@ const nextSeed = async (db: Database, queue: CrawlQueue) => {
 type Seed = NonNullable<Awaited<ReturnType<typeof nextSeed>>>;
 
 const processMatch = async (
-  { db, riot, signal, loadItems }: CrawlDependencies,
+  { db, riot, signal, loadItems, now }: CrawlDependencies,
   matchId: string,
   queue: CrawlQueue,
-  tier: Seed["tier"]
+  seedId: Seed["id"]
 ) => {
   const match = await riot.match(matchId);
   if (match.metadata.matchId !== matchId || match.info.queueId !== queue) {
     return false;
   }
-  if (match.info.gameDuration < MIN_MATCH_DURATION_S) {
+  const patch = await recognizePatch(db, match.info.gameVersion);
+  if (!patch || match.info.gameDuration < MIN_MATCH_DURATION_S) {
     return false;
   }
-  const patch = await recognizePatch(db, match.info.gameVersion);
-  if (!patch) {
+  if (await skipMalformedRunePage(db, match, now)) {
     return false;
   }
   const timeline = await riot.timeline(matchId);
   const items = await loadItems(patch.ddragonVersion);
   signal?.throwIfAborted();
-  return await ingestMatch(db, { match, timeline, items, seedTier: tier });
+  return await ingestMatch(
+    db,
+    { match, timeline, items, seedTier: null },
+    { seedId, now }
+  );
 };
 
 function* historyPages(
@@ -177,7 +199,7 @@ function* candidatesForPage(
       return;
     }
     budget.candidates += 1;
-    yield processMatch(deps, id, queue, seed.tier);
+    yield processMatch(deps, id, queue, seed.id);
   }
 }
 
@@ -190,6 +212,18 @@ const finishWindow = async (
   signal?.throwIfAborted();
   const crawledUntil = new Date(endTime * SECOND_MS);
   await db.transaction(async (tx) => {
+    await tx
+      .select({ id: collectorState.id })
+      .from(collectorState)
+      .for("update");
+    const [eligible] = await tx
+      .select({ id: seedPlayers.id })
+      .from(seedPlayers)
+      .where(eq(seedPlayers.id, seed.id))
+      .for("share");
+    if (!eligible) {
+      return;
+    }
     await tx
       .insert(seedQueueProgress)
       .values({ seedPlayerId: seed.id, queueId: queue, crawledUntil })
@@ -255,7 +289,7 @@ export const crawlWindow = async (
 
 function* crawlWindows(
   deps: CrawlDependencies,
-  rng: (() => number) | undefined,
+  nextQueue: () => CrawlQueue,
   budget: WindowBudget,
   limited: boolean
 ) {
@@ -265,7 +299,7 @@ function* crawlWindows(
     window < windowLimit && !budgetSpent(budget);
     window += 1
   ) {
-    yield crawlWindow(deps, chooseCrawlQueue(rng), {
+    yield crawlWindow(deps, nextQueue(), {
       limit: budget.limit - budget.inserted,
       candidateLimit: budget.candidateLimit - budget.candidates,
       pageLimit: limited ? QA_PAGES_PER_WINDOW : Number.POSITIVE_INFINITY,
@@ -288,11 +322,18 @@ export const crawlOnce = async (
     readonly riot: RiotClient;
     readonly apiKey: string;
     readonly getVersions?: () => Promise<readonly string[]>;
-    readonly rng?: () => number;
+    readonly nextQueue?: () => CrawlQueue;
   },
   limit?: number
 ) => {
-  const { db, riot, apiKey, now, getVersions, rng } = deps;
+  const {
+    db,
+    riot,
+    apiKey,
+    now,
+    getVersions,
+    nextQueue = nextCrawlQueue,
+  } = deps;
   try {
     const [known] = await db
       .select({ patch: patches.patch })
@@ -313,7 +354,7 @@ export const crawlOnce = async (
     };
     for await (const result of crawlWindows(
       deps,
-      rng,
+      nextQueue,
       budget,
       limit !== undefined
     )) {
