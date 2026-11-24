@@ -221,16 +221,6 @@ async fn real_live_supervisor_polls_fake_and_handles_connection_refusal() {
         println!("integration harness: YLC_LIVE_CLIENT_URL={base}");
 
         let catalog = live::Catalog::default();
-        catalog
-            .replace(
-                [
-                    ("Ahri".into(), 103),
-                    ("Garen".into(), 86),
-                    ("Zed".into(), 238),
-                ]
-                .into(),
-            )
-            .expect("install synthetic Data Dragon catalog");
         let (phase, phases) = watch::channel(Phase::None);
         let mut lcu = Running::start_with_phases(&lockfile, &ca, phase);
         let (emit, mut events) = mpsc::unbounded_channel();
@@ -260,6 +250,20 @@ async fn real_live_supervisor_polls_fake_and_handles_connection_refusal() {
             live::LiveState::WaitingForGame,
         );
         replay(fake.replay_url("live-game"), &ca).await;
+        assert_live_status(
+            events.recv().await.unwrap().1,
+            live::LiveState::WaitingForCatalog,
+        );
+        catalog
+            .replace(
+                [
+                    ("Ahri".into(), 103),
+                    ("Garen".into(), 86),
+                    ("Zed".into(), 238),
+                ]
+                .into(),
+            )
+            .expect("install synthetic Data Dragon catalog");
         assert_live_status(events.recv().await.unwrap().1, live::LiveState::Active);
         let (first_at, first) = events.recv().await.unwrap();
         assert_eq!(

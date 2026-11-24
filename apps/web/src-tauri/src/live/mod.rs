@@ -28,7 +28,11 @@ const POLL_PERIOD: Duration = Duration::from_secs(5);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LiveState {
+    /// Gameflow is outside InProgress, or Live Client data is unavailable.
     WaitingForGame,
+    /// The game is in progress but `live_set_champion_ids` has not supplied a catalog.
+    WaitingForCatalog,
+    /// A normalized game snapshot is available.
     Active,
 }
 
@@ -53,7 +57,9 @@ pub enum Error {
     Unavailable,
     #[error("invalid Live Client JSON")]
     Json,
-    #[error("Live Client roster or champion catalog unavailable")]
+    #[error("Live Client champion catalog is empty")]
+    EmptyCatalog,
+    #[error("Live Client roster or champion mapping unavailable")]
     Roster,
 }
 
@@ -114,9 +120,16 @@ impl Supervisor {
         poll(
             phase,
             || async {
+                if catalog.borrow().is_empty() {
+                    return Err(Error::EmptyCatalog);
+                }
                 let (client, url) = transport.as_ref().map_err(|error| *error)?;
                 let raw = fetch(client, url.clone()).await?;
-                raw.normalize(&catalog.borrow()).ok_or(Error::Roster)
+                let catalog = catalog.borrow();
+                if catalog.is_empty() {
+                    return Err(Error::EmptyCatalog);
+                }
+                raw.normalize(&catalog).ok_or(Error::Roster)
             },
             emit,
         )
@@ -189,10 +202,10 @@ async fn poll<F: Future<Output = Result<payload::Game, Error>>>(
             if *current_phase != Phase::InProgress || !matches!(phase.has_changed(), Ok(false)) {
                 break;
             }
-            let next = if update.is_ok() {
-                LiveState::Active
-            } else {
-                LiveState::WaitingForGame
+            let next = match &update {
+                Ok(_) => LiveState::Active,
+                Err(Error::EmptyCatalog) => LiveState::WaitingForCatalog,
+                Err(_) => LiveState::WaitingForGame,
             };
             set_status(&mut state, next, &mut emit);
             if let Ok(game) = update {

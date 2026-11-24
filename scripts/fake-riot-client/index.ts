@@ -59,9 +59,11 @@ let replaying = false;
 let liveData = allGameData;
 const livePath = "/liveclientdata/allgamedata";
 
-const armorItems = [3047, 3075, 3110].map((itemID) => ({
+const armorItems = [3047, 3075, 3110].map((itemID, slot) => ({
+  count: 1,
   displayName: "SENTINEL_NAME_DO_NOT_SHOW",
   itemID,
+  slot,
 }));
 
 const rest = new Map<string, unknown>([

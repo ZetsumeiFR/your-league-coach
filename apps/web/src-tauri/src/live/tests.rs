@@ -68,6 +68,46 @@ fn serializes_only_allowed_fields_and_canonical_champion_slug() {
 }
 
 #[test]
+fn same_slot_stack_changes_update_owned_and_enemy_items() {
+    let mut input: Value = serde_json::from_str(FIXTURE).unwrap();
+    input["allPlayers"][2]["items"] = json!([
+        {"slot": 1, "itemID": 2003, "count": 1},
+        {"slot": 0, "itemID": 1056, "count": 1},
+    ]);
+    input["allPlayers"][1]["items"] = json!([
+        {"slot": 6, "itemID": 3340, "count": 1},
+        {"slot": 2, "itemID": 2055, "count": 1},
+    ]);
+    let snapshot = |raw: &Value| {
+        serde_json::to_value(
+            serde_json::from_value::<AllGameData>(raw.clone())
+                .unwrap()
+                .normalize(&catalog())
+                .unwrap(),
+        )
+        .unwrap()
+    };
+    let before = snapshot(&input);
+    assert_eq!(snapshot(&input), before);
+
+    input["allPlayers"][2]["items"][0]["count"] = json!(2);
+    let owned_purchase = snapshot(&input);
+    assert_ne!(owned_purchase, before, "owned stack purchase was lost");
+    let mut expected = before;
+    expected["myItems"] = json!([1056, 2003, 2003]);
+    assert_eq!(owned_purchase, expected);
+
+    input["allPlayers"][1]["items"][1]["count"] = json!(2);
+    let enemy_purchase = snapshot(&input);
+    assert_ne!(
+        enemy_purchase, owned_purchase,
+        "enemy stack purchase was lost"
+    );
+    expected["enemies"][0]["items"] = json!([2055, 2055, 3340]);
+    assert_eq!(enemy_purchase, expected);
+}
+
+#[test]
 fn rejects_malformed_data_and_ambiguous_or_unknown_roster() {
     for input in [&FIXTURE[..FIXTURE.len() / 2], "{}", "{\"allPlayers\":3}"] {
         assert!(serde_json::from_str::<AllGameData>(input).is_err());

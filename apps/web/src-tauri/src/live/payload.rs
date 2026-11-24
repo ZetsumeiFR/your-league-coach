@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct ChampionCatalog(HashMap<String, (String, u32)>);
 
 impl ChampionCatalog {
+    pub(super) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub(crate) fn new(champion_ids: HashMap<String, u32>) -> Option<Self> {
         let mut catalog = HashMap::new();
         for (slug, id) in champion_ids {
@@ -114,6 +118,17 @@ struct RawPlayer {
 struct RawItem {
     #[serde(rename = "itemID")]
     id: u32,
+    slot: u8,
+    count: u8,
+}
+
+fn inventory(items: &[RawItem]) -> Vec<u32> {
+    let mut by_slot: Vec<_> = items.iter().collect();
+    by_slot.sort_unstable_by_key(|item| (item.slot, item.id));
+    by_slot
+        .into_iter()
+        .flat_map(|item| std::iter::repeat_n(item.id, usize::from(item.count)))
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -143,7 +158,7 @@ impl AllGameData {
                 level: self.active_player.level,
                 current_gold: self.active_player.current_gold,
             },
-            my_items: local.items.iter().map(|item| item.id).collect(),
+            my_items: inventory(&local.items),
             allies: Vec::new(),
             enemies: Vec::new(),
         };
@@ -159,7 +174,7 @@ impl AllGameData {
             };
             roster.push(TeamPlayer {
                 champion_id: *id,
-                items: player.items.iter().map(|item| item.id).collect(),
+                items: inventory(&player.items),
             });
         }
         Some(game)

@@ -10,7 +10,14 @@
   "allPlayers": [
     {
       "championName": "SENTINEL_NAME_DO_NOT_SHOW",
-      "items": [{ "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1055 }],
+      "items": [
+        {
+          "count": 1,
+          "displayName": "SENTINEL_NAME_DO_NOT_SHOW",
+          "itemID": 1055,
+          "slot": 0
+        }
+      ],
       "rawChampionName": "game_character_displayname_Garen",
       "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
       "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
@@ -18,7 +25,14 @@
     },
     {
       "championName": "SENTINEL_NAME_DO_NOT_SHOW",
-      "items": [{ "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1058 }],
+      "items": [
+        {
+          "count": 1,
+          "displayName": "SENTINEL_NAME_DO_NOT_SHOW",
+          "itemID": 1058,
+          "slot": 0
+        }
+      ],
       "rawChampionName": "game_character_displayname_Zed",
       "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
       "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
@@ -27,9 +41,18 @@
     {
       "championName": "SENTINEL_NAME_DO_NOT_SHOW",
       "items": [
-        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1056 },
-        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 2003 },
-        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 2003 }
+        {
+          "count": 2,
+          "displayName": "SENTINEL_NAME_DO_NOT_SHOW",
+          "itemID": 2003,
+          "slot": 1
+        },
+        {
+          "count": 1,
+          "displayName": "SENTINEL_NAME_DO_NOT_SHOW",
+          "itemID": 1056,
+          "slot": 0
+        }
       ],
       "rawChampionName": "game_character_displayname_Ahri",
       "riotId": "SENTINEL_NAME_DO_NOT_SHOW",
