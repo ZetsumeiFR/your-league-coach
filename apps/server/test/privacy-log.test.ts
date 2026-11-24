@@ -9,25 +9,22 @@ const SENTINEL_PUUID = "SENTINEL_PUUID_DO_NOT_LOG";
 const SENTINEL_NAME = "SENTINEL_NAME_DO_NOT_LOG";
 const SENTINELS = [ACCESS_KEY, WRONG_KEY, SENTINEL_PUUID, SENTINEL_NAME];
 const QUERY = `?puuid=${SENTINEL_PUUID}&summonerName=${SENTINEL_NAME}`;
-const ENV_KEYS = [
-  "NODE_ENV",
-  "COACH_ACCESS_KEY",
-  "CORS_ORIGIN",
-  "DATABASE_URL",
-] as const;
 
 let app: Hono;
 const captured: string[] = [];
 const restores: (() => void)[] = [];
-const previousEnv = new Map<string, string | undefined>();
+const previousEnv = { ...process.env };
+// Varlock exposes no reset API; restore its process globals with the environment.
+const previousVarlockGlobals = new Map(
+  Object.getOwnPropertyNames(globalThis)
+    .filter((key) => key.toLowerCase().includes("varlock"))
+    .map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
+);
 
 // Spies go in before the app is imported, so loggers that bind console or the
 // streams at module load write into the capture too.
 beforeAll(async () => {
   captureOutput();
-  for (const key of ENV_KEYS) {
-    previousEnv.set(key, process.env[key]);
-  }
   Object.assign(process.env, {
     NODE_ENV: "test",
     COACH_ACCESS_KEY: ACCESS_KEY,
@@ -69,12 +66,23 @@ afterAll(() => {
   for (const restore of restores.splice(0)) {
     restore();
   }
-  for (const key of ENV_KEYS) {
-    const value = previousEnv.get(key);
-    if (value === undefined) {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in previousEnv)) {
       delete process.env[key];
-    } else {
-      process.env[key] = value;
+    }
+  }
+  Object.assign(process.env, previousEnv);
+  for (const key of Object.getOwnPropertyNames(globalThis)) {
+    if (
+      key.toLowerCase().includes("varlock") &&
+      !previousVarlockGlobals.has(key)
+    ) {
+      Reflect.deleteProperty(globalThis, key);
+    }
+  }
+  for (const [key, descriptor] of previousVarlockGlobals) {
+    if (descriptor) {
+      Object.defineProperty(globalThis, key, descriptor);
     }
   }
 });
