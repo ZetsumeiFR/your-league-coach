@@ -69,6 +69,7 @@
     "VERCEL_PROJECT_PRODUCTION_URL",
     "VERCEL_URL",
     "VITE_SERVER_URL",
+    "VITE_YLC_MOCK_IPC",
     "_VARLOCK_ENV_KEY"
   ],
   "globalPassThroughEnv": ["REUI_LICENSE_KEY"],

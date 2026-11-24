@@ -3,8 +3,18 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { loadSettings } from "./lib/settings-store";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
+
+// Browser QA only. The flag is replaced at build time, so a desktop build
+// (flag unset) drops this branch together with the mock and its fixtures.
+if (import.meta.env.VITE_YLC_MOCK_IPC === "1") {
+  const { installDesktopMock } = await import("./lib/desktop/mock");
+  installDesktopMock();
+}
+
+loadSettings();
 
 const router = createRouter({
   routeTree,

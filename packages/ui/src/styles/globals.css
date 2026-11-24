@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
@@ -85,8 +86,10 @@
   --destructive-foreground: var(--color-red-600);
   --success: var(--color-emerald-500);
   --success-foreground: var(--color-emerald-600);
-  --info: var(--color-violet-500);
-  --info-foreground: var(--color-violet-600);
+  /* violet-400, not the 500/600 of the ReUI defaults: those give info text
+     3.5:1 on dark surfaces, below the 4.5:1 that small text needs. */
+  --info: var(--color-violet-400);
+  --info-foreground: var(--color-violet-400);
   --warning: var(--color-yellow-500);
   --warning-foreground: var(--color-yellow-600);
   --invert: var(--color-zinc-700);
@@ -145,13 +148,39 @@
 }
 
 @layer base {
+  /* Scrollbars and text selection take the palette in both themes. */
   * {
+    scrollbar-color: color-mix(in oklab, var(--foreground) 25%, transparent)
+      transparent;
+    scrollbar-width: thin;
     @apply border-border outline-ring/50;
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 25%, transparent);
   }
   body {
     @apply font-sans bg-background text-foreground;
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Reduced motion: transitions and entrance animations end at once. Left out
+ * of any layer on purpose, so it outranks the duration utilities; 1ms, not 0,
+ * so components that wait for the end of an animation still get the event.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms;
+    transition-duration: 1ms;
+    scroll-behavior: auto;
+  }
+  /* A busy indicator has to keep turning to mean anything. */
+  .animate-spin {
+    animation-duration: 1s;
   }
 }

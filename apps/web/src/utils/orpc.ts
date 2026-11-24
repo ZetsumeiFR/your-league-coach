@@ -1,38 +1,46 @@
-import { createORPCClient } from "@orpc/client";
+import { createORPCClient, ORPCError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
-import type { AppRouterClient } from "@your-league-coach/api/routers/index";
-import { toast } from "sonner";
+import { QueryClient } from "@tanstack/react-query";
+import type { AppRouter } from "@your-league-coach/api/routers/index";
 
-import { getCoachSettings } from "@/lib/settings";
+import type { Connection } from "@/lib/settings";
+import { getSettings } from "@/lib/settings-store";
 
-const TRAILING_SLASH = /\/$/;
-
-export function createQueryClient() {
-  return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (error, query) => {
-        toast.error(`Error: ${error.message}`, {
-          action: {
-            label: "retry",
-            onClick: () => {
-              query.invalidate();
-            },
-          },
-        });
-      },
-    }),
-  });
+/** A call may name its own connection: the settings form tests one before saving it. */
+interface CoachClientContext {
+  connection?: Connection;
 }
 
-export const queryClient = createQueryClient();
+const connectionOf = ({ connection }: CoachClientContext): Connection => {
+  const active = connection ?? getSettings();
+  if (active === null) {
+    throw new Error("The server cannot be called before settings are loaded");
+  }
+  return active;
+};
 
-export const link = new RPCLink({
-  url: () => `${getCoachSettings().serverUrl.replace(TRAILING_SLASH, "")}/rpc`,
-  headers: () => ({ Authorization: `Bearer ${getCoachSettings().accessKey}` }),
+export const queryClient = new QueryClient();
+
+const link = new RPCLink<CoachClientContext>({
+  url: ({ context }) => `${connectionOf(context).serverUrl}/rpc`,
+  headers: ({ context }) => ({
+    Authorization: `Bearer ${connectionOf(context).accessKey}`,
+  }),
 });
 
-export const client: AppRouterClient = createORPCClient(link);
+export const client: RouterClient<AppRouter, CoachClientContext> =
+  createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
+
+export type ServerFailure = "unauthorized" | "unreachable" | "failed";
+
+/** A rejected request that is not an oRPC error never got an answer from the server. */
+export const classifyServerError = (error: unknown): ServerFailure => {
+  if (error instanceof ORPCError) {
+    return error.code === "UNAUTHORIZED" ? "unauthorized" : "failed";
+  }
+  return "unreachable";
+};

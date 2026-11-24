@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>your-league-coach</title>
+    <link href="data:," rel="icon">
+    <title>Your League Coach</title>
+    <script>
+    "use strict";
+    // Applies the stored theme before the first paint. Keep the storage key
+    // and the default in step with src/components/theme-provider.tsx.
+    (() => {
+      let theme = "dark";
+      try {
+        theme = localStorage.getItem("vite-ui-theme") ?? theme;
+      } catch {
+        // Storage is unavailable: the default stands until the app mounts.
+      }
+      const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDark = theme === "dark" || (theme === "system" && prefersDark);
+      document.documentElement.classList.toggle("dark", isDark);
+      document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    })();
+    </script>
   </head>
 
   <body>

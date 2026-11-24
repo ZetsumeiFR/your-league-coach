@@ -52,6 +52,20 @@
       }
     },
     {
+      "includes": ["packages/ui/src/components/field.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": { "useSemanticElements": "off" },
+          "suspicious": {
+            "noArrayIndexKey": "off",
+            "noDoubleEquals": "off",
+            "noLeakedRender": "off",
+            "noUnnecessaryConditions": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/ui/src/components/item.tsx"],
       "linter": { "rules": { "a11y": { "useSemanticElements": "off" } } }
     },
@@ -109,6 +123,7 @@
         "packages/ui/src/reui/icons/default/outline/arrows-diagonal.tsx",
         "packages/ui/src/reui/icons/default/outline/cloud.tsx",
         "packages/ui/src/reui/icons/default/outline/cross-circle.tsx",
+        "packages/ui/src/reui/icons/default/outline/crown.tsx",
         "packages/ui/src/reui/icons/default/outline/disconnect.tsx",
         "packages/ui/src/reui/icons/default/outline/entrance-up.tsx",
         "packages/ui/src/reui/icons/default/outline/exclamation-circle.tsx",
@@ -137,8 +152,17 @@
     {
       "includes": [
         "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-shell.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-sidebar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-main.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-secondary.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
+        "packages/ui/src/components/blocks/stats-8/components/stats.tsx",
         "packages/ui/src/components/breadcrumb.tsx",
         "packages/ui/src/components/examples/c-progress-2.tsx",
+        "packages/ui/src/components/field.tsx",
         "packages/ui/src/components/item.tsx",
         "packages/ui/src/components/kbd.tsx",
         "packages/ui/src/components/progress.tsx",
@@ -161,9 +185,15 @@
     {
       "includes": [
         "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-sidebar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
+        "packages/ui/src/components/blocks/stats-8/components/stats.tsx",
         "packages/ui/src/components/breadcrumb.tsx",
         "packages/ui/src/components/examples/c-frame-2.tsx",
         "packages/ui/src/components/examples/c-frame-3.tsx",
+        "packages/ui/src/components/field.tsx",
         "packages/ui/src/components/item.tsx",
         "packages/ui/src/components/kbd.tsx",
         "packages/ui/src/components/progress.tsx",

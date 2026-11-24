@@ -1,5 +1,6 @@
 {
   "references": [{ "path": "../../packages/api" }],
+  "include": ["src", "vite.config.ts"],
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,
