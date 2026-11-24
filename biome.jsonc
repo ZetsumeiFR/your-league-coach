@@ -6,9 +6,23 @@
     "ultracite/biome/tanstack"
   ],
   "files": {
-    "includes": ["!.agents/skills"]
+    "includes": [
+      "!.agents/skills",
+      "packages/coach/src/build",
+      "packages/coach/src/build/**",
+      "packages/coach/test/build",
+      "packages/coach/test/build/**"
+    ]
   },
   "overrides": [
+    {
+      "includes": [
+        "packages/coach/src/build/**",
+        "packages/coach/test/build/**"
+      ],
+      "formatter": { "enabled": true },
+      "linter": { "enabled": true }
+    },
     {
       "includes": ["packages/ui/src/components/input-group.tsx"],
       "linter": {

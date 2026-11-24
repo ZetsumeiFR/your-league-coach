@@ -34,6 +34,7 @@ const championsResponseSchema = z.object({
 
 const itemSchema = z.object({
   name: z.string(),
+  description: z.string().optional(),
   tags: z.array(z.string()),
   gold: z.object({ total: z.number() }),
   into: z.array(numericString).optional(),
@@ -88,6 +89,8 @@ export interface Champion {
 
 export interface Item {
   depth: number | undefined;
+  /** Localized Data Dragon tooltip, including its markup. */
+  description?: string;
   from: number[];
   goldTotal: number;
   id: number;
@@ -115,6 +118,9 @@ export const parseItems = (json: unknown): Item[] =>
   Object.entries(itemsResponseSchema.parse(json).data).map(([id, item]) => ({
     id: Number(id),
     name: item.name,
+    ...(item.description === undefined
+      ? {}
+      : { description: item.description }),
     tags: item.tags,
     goldTotal: item.gold.total,
     into: (item.into ?? []).map(Number),

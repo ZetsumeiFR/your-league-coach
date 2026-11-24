@@ -43,3 +43,22 @@ export const DRAFT_DAMAGE = {
 
 /** Maximum picks, bans, and pool targets used for bans. */
 export const DRAFT_LIMITS = { picks: 10, bans: 5, banTargets: 3 } as const;
+
+// --- Build ---
+/** Minimum share of champion-role games for the win-rate shortlist. */
+export const MIN_BUILD_PICK_RATE = 0.05;
+/** Maximum number of situational items in a recommendation. */
+export const MAX_SITUATIONAL_ITEMS = 4;
+/** Minimum profile-specific item games before preferring its result. */
+export const MIN_ITEM_PROFILE_GAMES = 200;
+/** Dominant-damage share and trait counts required to trigger composition rules. */
+export const ENEMY_BUILD_THRESHOLDS = {
+  damageShare: 0.65,
+  healers: 2,
+  tanks: 2,
+  hardCc: 3,
+  resistanceItems: 3,
+} as const;
+/** High Data Dragon defense rating, corroborated by the Fighter class. */
+export const FRONTLINE_DEFENSE_RATING = 8;
+// --- End Build ---
