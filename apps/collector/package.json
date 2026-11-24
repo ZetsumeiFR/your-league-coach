@@ -1,0 +1,23 @@
+{
+  "name": "collector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "dev": "bun run --watch src/riot/smoke.ts",
+    "env:generate": "varlock codegen",
+    "start": "bun run src/riot/smoke.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@your-league-coach/db": "workspace:*",
+    "@your-league-coach/lol-data": "workspace:*",
+    "varlock": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@your-league-coach/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

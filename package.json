@@ -46,9 +46,9 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:up": "docker compose up -d --build",
-    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/ && varlock codegen --path ./apps/collector/",
     "fix": "ultracite fix",
-    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/"
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/ && varlock codegen --path ./apps/collector/"
   },
   "dependencies": {
     "zod": "catalog:"
