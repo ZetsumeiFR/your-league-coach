@@ -1,0 +1,41 @@
+[
+  {
+    "queueType": "RANKED_SOLO_5x5",
+    "tier": "EMERALD",
+    "rank": "I",
+    "puuid": "puuid-1",
+    "leaguePoints": 52,
+    "wins": 120,
+    "losses": 122,
+    "veteran": false,
+    "inactive": false,
+    "freshBlood": false,
+    "hotStreak": false
+  },
+  {
+    "queueType": "RANKED_SOLO_5x5",
+    "tier": "EMERALD",
+    "rank": "I",
+    "puuid": "puuid-2",
+    "leaguePoints": 40,
+    "wins": 125,
+    "losses": 125,
+    "veteran": false,
+    "inactive": false,
+    "freshBlood": false,
+    "hotStreak": true
+  },
+  {
+    "queueType": "RANKED_SOLO_5x5",
+    "tier": "EMERALD",
+    "rank": "I",
+    "puuid": "puuid-3",
+    "leaguePoints": 75,
+    "wins": 49,
+    "losses": 38,
+    "veteran": false,
+    "inactive": false,
+    "freshBlood": false,
+    "hotStreak": false
+  }
+]
