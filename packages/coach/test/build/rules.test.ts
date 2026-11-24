@@ -49,6 +49,63 @@ it("detects stat-backed Wounds items that don't use the passive name", () => {
   expect(result.adjustments.map(({ added }) => added)).toEqual([3075]);
 });
 
+it.each([true, false])(
+  "requires a Wounds keyword for both stat-backed items and class fallbacks (AP fallback eligible: %s)",
+  (fallbackEligible) => {
+    const result = applyBuildRules(
+      build,
+      context(healHeavy, {
+        buildStats: [...ahriStats.rows, row("item", "3123", 100, 40)],
+        items: items.map((item) => {
+          if (item.id === 3123) {
+            return { ...item, description: "15 Attack Damage" };
+          }
+          if (item.id === 3165 && !fallbackEligible) {
+            return { ...item, description: "75 Ability Power" };
+          }
+          return item;
+        }),
+      })
+    );
+    expect(result.adjustments.map(({ added }) => added)).toEqual(
+      fallbackEligible ? [3165] : []
+    );
+  }
+);
+
+it("keeps a base anti-heal item when the next rule adds armor", () => {
+  const stats = {
+    ...ahriStats,
+    rows: ahriStats.rows.map((entry) =>
+      entry.kind === "item" && entry.key === "3100"
+        ? { ...entry, key: "3165" }
+        : entry
+    ),
+  };
+  const base = buildRecommendationSchema.parse(baseBuild(stats));
+  const result = applyBuildRules(
+    base,
+    context(["Soraka", "Aatrox", "Jinx", "Zed", "Talon"], {
+      buildStats: stats.rows,
+    })
+  );
+  expect(result.situational).toEqual([3135, 4629, 3157, 3165]);
+  expect(result.adjustments).toEqual([
+    {
+      ruleId: "armor_vs_ad",
+      reasonCode: "armor_vs_ad",
+      added: 3047,
+      replaced: 3020,
+    },
+    {
+      ruleId: "armor_vs_ad",
+      reasonCode: "armor_vs_ad",
+      added: 3157,
+      replaced: 3116,
+    },
+  ]);
+});
+
 it.each([
   { games: 199, label: "heal_heavy", selected: 3165 },
   { games: 200, label: "ad_heavy", selected: 3165 },
@@ -98,17 +155,24 @@ it("leaves the base build unchanged against a balanced composition", () => {
   expect(applyBuildRules(build, context(balanced))).toEqual(build);
 });
 
-it("does not apply the armor rule to an ADC", () => {
-  const marksman = { ...build, championId: 222, role: "BOTTOM" } as const;
-  expect(
-    applyBuildRules(
-      marksman,
-      context(adHeavy, {
-        player: champion("Jinx"),
-      })
-    )
-  ).toEqual(marksman);
-});
+it.each([
+  { name: "Ahri", role: "BOTTOM", boots: 3047, adjustmentIds: [3047, 3157] },
+  { name: "Jinx", role: "BOTTOM", boots: 3020, adjustmentIds: [] },
+  { name: "Jinx", role: "MIDDLE", boots: 3020, adjustmentIds: [] },
+] as const)(
+  "uses $name's class rather than $role for the ADC exemption",
+  ({ name, role, boots, adjustmentIds }) => {
+    const player = champion(name);
+    const result = applyBuildRules(
+      { ...build, championId: player.key, role },
+      context(adHeavy, { player })
+    );
+    expect(result.boots).toBe(boots);
+    expect(result.adjustments.map(({ added }) => added)).toEqual([
+      ...adjustmentIds,
+    ]);
+  }
+);
 
 it.each([
   { missing: 3165, enemies: healHeavy },

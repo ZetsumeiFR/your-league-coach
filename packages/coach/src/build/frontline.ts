@@ -19,18 +19,16 @@ import {
 export function defensiveCore(
   build: BuildRecommendation,
   rows: readonly BuildStatRow[],
-  data: RuleItems
+  data: RuleItems,
+  protectedIds: ReadonlySet<ItemId>
 ): ItemId[] | undefined {
   const isDefense = (id: ItemId): boolean => {
     const item = data.catalog.get(id);
     return item !== undefined && isDefensive(item);
   };
   const baseDefense = build.core.filter(isDefense).length;
-  const blocked = new Set([
-    ...build.starter,
-    build.boots,
-    ...build.adjustments.map(({ added }) => added),
-  ]);
+  const blocked = new Set([...build.starter, build.boots]);
+  const retained = build.core.filter((id) => protectedIds.has(id));
   const candidates = rows.flatMap((row) => {
     if (row.kind !== "core" || !hasGames(row)) {
       return [];
@@ -40,6 +38,7 @@ export function defensiveCore(
       ids?.length !== build.core.length ||
       new Set(ids).size !== ids.length ||
       !ids.every((id) => data.catalog.has(id) && !blocked.has(id)) ||
+      !retained.every((id) => ids.includes(id)) ||
       ids.filter(isDefense).length <= baseDefense
     ) {
       return [];

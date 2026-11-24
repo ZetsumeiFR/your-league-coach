@@ -46,6 +46,7 @@ export interface BuildRuleContext {
 
 interface RuleContext extends BuildRuleContext {
   readonly itemData: RuleItems;
+  readonly protectedIds: Set<ItemId>;
 }
 
 interface BuildRule {
@@ -72,10 +73,13 @@ function adjustment(
 function addSituational(
   build: BuildRecommendation,
   ruleId: BuildRuleId,
-  added: ItemId | undefined
+  added: ItemId | undefined,
+  protectedIds: Set<ItemId>
 ): BuildRecommendation {
+  if (added === undefined) {
+    return build;
+  }
   if (
-    added === undefined ||
     [
       build.boots,
       ...build.starter,
@@ -83,9 +87,9 @@ function addSituational(
       ...build.situational,
     ].includes(added)
   ) {
+    protectedIds.add(added);
     return build;
   }
-  const protectedIds = new Set(build.adjustments.map((entry) => entry.added));
   const situational = [...build.situational];
   // Base items are already ranked. Preserve items added by earlier rules.
   const index = situational.findLastIndex((id) => !protectedIds.has(id));
@@ -99,6 +103,7 @@ function addSituational(
   } else {
     return build;
   }
+  protectedIds.add(added);
   return {
     ...build,
     situational,
@@ -109,15 +114,20 @@ function addSituational(
 function swapBoots(
   build: BuildRecommendation,
   ruleId: BuildRuleId,
-  added: ItemId
+  added: ItemId,
+  protectedIds: Set<ItemId>
 ): BuildRecommendation {
-  if (
-    build.boots === null ||
-    build.boots === added ||
-    build.adjustments.some(({ added: item }) => item === build.boots)
-  ) {
+  if (build.boots === null) {
     return build;
   }
+  if (build.boots === added) {
+    protectedIds.add(added);
+    return build;
+  }
+  if (protectedIds.has(build.boots)) {
+    return build;
+  }
+  protectedIds.add(added);
   return {
     ...build,
     boots: added,
@@ -131,14 +141,15 @@ function resistanceRule(
   boots: ItemId,
   matches: (item: Item) => boolean
 ): BuildRule["apply"] {
-  return (build, { itemData }) => {
+  return (build, { itemData, protectedIds }) => {
     if (build.boots !== null && !itemData.catalog.has(boots)) {
       return build;
     }
     return addSituational(
-      swapBoots(build, ruleId, boots),
+      swapBoots(build, ruleId, boots, protectedIds),
       ruleId,
-      bestRuleItem(itemData, matches)
+      bestRuleItem(itemData, matches),
+      protectedIds
     );
   };
 }
@@ -178,17 +189,17 @@ const thresholds = ENEMY_BUILD_THRESHOLDS;
 const RULES: Readonly<Record<BuildRuleId, BuildRule>> = {
   anti_heal: {
     when: (_, { profile }) => profile.healers >= thresholds.healers,
-    apply: (build, { player, itemData }) =>
+    apply: (build, { player, itemData, protectedIds }) =>
       addSituational(
         build,
         "anti_heal",
-        bestRuleItem(itemData, isAntiHeal, antiHealFallback(player))
+        bestRuleItem(itemData, isAntiHeal, antiHealFallback(player)),
+        protectedIds
       ),
   },
   armor_vs_ad: {
-    when: (build, { profile, player }) =>
+    when: (_, { profile, player }) =>
       profile.adShare >= thresholds.damageShare &&
-      build.role !== "BOTTOM" &&
       !player?.tags.includes("Marksman"),
     apply: resistanceRule("armor_vs_ad", PLATED_STEELCAPS, isArmor),
   },
@@ -198,9 +209,9 @@ const RULES: Readonly<Record<BuildRuleId, BuildRule>> = {
   },
   tenacity_vs_cc: {
     when: (_, { profile }) => profile.hardCc >= thresholds.hardCc,
-    apply: (build, { itemData }) =>
+    apply: (build, { itemData, protectedIds }) =>
       itemData.catalog.has(MERCURYS_TREADS)
-        ? swapBoots(build, "tenacity_vs_cc", MERCURYS_TREADS)
+        ? swapBoots(build, "tenacity_vs_cc", MERCURYS_TREADS, protectedIds)
         : build,
   },
   frontline_missing: {
@@ -209,20 +220,27 @@ const RULES: Readonly<Record<BuildRuleId, BuildRule>> = {
         player?.tags.some((tag) => tag === "Fighter" || tag === "Tank")
       ) &&
       !allies.some((ally) => ally && ally.id !== player?.id && isTank(ally)),
-    apply: (build, { buildStats, itemData }) => {
-      const core = defensiveCore(build, buildStats, itemData);
-      return core ? swapCore(build, core) : build;
+    apply: (build, { buildStats, itemData, protectedIds }) => {
+      const core = defensiveCore(build, buildStats, itemData, protectedIds);
+      if (!core) {
+        return build;
+      }
+      for (const id of core) {
+        protectedIds.add(id);
+      }
+      return swapCore(build, core);
     },
   },
   penetration_vs_tanks: {
     when: (_, { profile }) =>
       profile.tanks >= thresholds.tanks ||
       profile.resistanceItems >= thresholds.resistanceItems,
-    apply: (build, { itemData }) =>
+    apply: (build, { itemData, protectedIds }) =>
       addSituational(
         build,
         "penetration_vs_tanks",
-        bestRuleItem(itemData, isPenetration)
+        bestRuleItem(itemData, isPenetration),
+        protectedIds
       ),
   },
 };
@@ -242,6 +260,7 @@ export function applyBuildRules(
   }
   const ctx = {
     ...context,
+    protectedIds: new Set(build.adjustments.map(({ added }) => added)),
     itemData: {
       catalog,
       itemRows: collectItemRows(context.buildStats),

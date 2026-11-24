@@ -62,6 +62,14 @@ it("admits a key at exactly 5% while excluding the stronger row just below it", 
   expect(build?.core).toEqual([6655, 3102, 3089]);
 });
 
+it("ranks a starter item among the top four when its item stats qualify", () => {
+  const build = baseBuild({
+    ...ahriStats,
+    rows: [...ahriStats.rows, row("item", "1056", 200, 160)],
+  });
+  expect(build?.situational).toEqual([1056, 3135, 4629, 3116]);
+});
+
 it.each([
   { label: "empty", rows: [] },
   {

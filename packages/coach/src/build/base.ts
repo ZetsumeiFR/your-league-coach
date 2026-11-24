@@ -145,7 +145,7 @@ export function baseBuild(input: BaseBuildInput): BuildRecommendation | null {
 
   const boots = bestKey(input, "boots", parseItem) ?? null;
   const starter = bestKey(input, "starter", parseIds) ?? [];
-  const excluded = new Set<ItemId>([...core, ...starter]);
+  const excluded = new Set<ItemId>(core);
   if (boots !== null) {
     excluded.add(boots);
   }

@@ -24,10 +24,7 @@ const WOUNDS_PATTERN =
 export function isAntiHeal(item: Item): boolean {
   return (
     item.tags.includes("GrievousWounds") ||
-    WOUNDS_PATTERN.test(item.description ?? "") ||
-    [...AD_ANTI_HEAL, ...AP_ANTI_HEAL, ...TANK_ANTI_HEAL].some(
-      (id) => id === item.id
-    )
+    WOUNDS_PATTERN.test(item.description ?? "")
   );
 }
 
