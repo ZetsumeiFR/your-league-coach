@@ -21,7 +21,7 @@ import {
   flowPath,
   loadScenario,
   phasePath,
-  rankedChampionIds,
+  rankedPickableChampionIds,
 } from "./fixtures/lcu/scenarios";
 
 type Subscription = Readonly<{ topics: Set<string> }>;
@@ -133,7 +133,7 @@ const read = (path: string) => {
       return Response.json(currentSelection);
     case pickablePath:
       return gameflow.get(phasePath) === "ChampSelect"
-        ? Response.json([...rankedChampionIds, 1, 2, 3, 4, 5])
+        ? Response.json(rankedPickableChampionIds)
         : notFound();
     default:
       return gameflow.has(path) || rest.has(path)

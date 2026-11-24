@@ -18,6 +18,7 @@ const contextWith = (accessKey: string | null): Context => ({
   db,
   accessKey,
   expectedAccessKey: EXPECTED_KEY,
+  staticData: () => Promise.reject(new Error("static data is not used")),
 });
 
 const protectedPing = coachProcedure.handler(() => "pong");

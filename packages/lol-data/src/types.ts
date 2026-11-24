@@ -196,3 +196,33 @@ export const buildRecommendationSchema = z.object({
   sources: blendSourcesSchema,
 });
 export type BuildRecommendation = z.infer<typeof buildRecommendationSchema>;
+
+export const nextItemSchema = z.object({
+  itemId: itemIdSchema,
+  reasons: z.array(reasonCodeSchema),
+});
+export type NextItem = z.infer<typeof nextItemSchema>;
+
+export const nextItemsSchema = z.object({
+  patch: z.string(),
+  sources: blendSourcesSchema,
+  items: z.array(nextItemSchema),
+});
+export type NextItems = z.infer<typeof nextItemsSchema>;
+
+const gameCountSchema = z.number().int().nonnegative();
+
+export const coachMetaSchema = z.object({
+  /** Null until the collector has detected a patch. */
+  patch: z.string().nullable(),
+  ddragonVersion: z.string().nullable(),
+  /** Matches behind the current patch's aggregates, per stats group. */
+  statsGroups: z.object({ sr: gameCountSchema, aram: gameCountSchema }),
+  collector: z.object({
+    lastCrawlAt: z.date().nullable(),
+    lastAggregateAt: z.date().nullable(),
+    lastError: z.string().nullable(),
+    lastErrorAt: z.date().nullable(),
+  }),
+});
+export type CoachMeta = z.infer<typeof coachMetaSchema>;

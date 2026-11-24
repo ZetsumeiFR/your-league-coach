@@ -3,7 +3,7 @@ import type { Context as ApiContext } from "@your-league-coach/api/context";
 import type { Context as HonoContext } from "hono";
 
 import { ENV } from "./env.server";
-import { db } from "./services";
+import { db, staticData } from "./services";
 
 export interface CreateContextOptions {
   context: HonoContext;
@@ -14,6 +14,7 @@ export function createContext({ context }: CreateContextOptions): ApiContext {
     db,
     accessKey: readBearerToken(context.req.header("Authorization")),
     expectedAccessKey: ENV.COACH_ACCESS_KEY,
+    staticData,
   };
 }
 

@@ -95,7 +95,10 @@
         "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
         "@orpc/zod": "catalog:",
+        "@your-league-coach/coach": "workspace:*",
         "@your-league-coach/db": "workspace:*",
+        "@your-league-coach/lol-data": "workspace:*",
+        "drizzle-orm": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
