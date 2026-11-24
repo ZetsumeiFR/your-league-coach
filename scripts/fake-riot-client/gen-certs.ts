@@ -14,7 +14,7 @@ await $`openssl req -new -newkey rsa:2048 -nodes -subj /CN=127.0.0.1 -keyout ser
   .quiet();
 await write(
   `${certDir}/server.ext`,
-  "subjectAltName=IP:127.0.0.1\nextendedKeyUsage=serverAuth\nbasicConstraints=critical,CA:FALSE\n"
+  "extendedKeyUsage=serverAuth\nbasicConstraints=critical,CA:FALSE\n"
 );
 await $`openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out server.pem -days 30 -sha256 -extfile server.ext`
   .cwd(certDir)

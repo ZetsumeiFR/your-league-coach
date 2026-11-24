@@ -1,4 +1,17 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
+
+// A negative wire champion ID means no champion, not a malformed session.
+fn champion_id<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+    let id = i64::deserialize(deserializer)?;
+    u32::try_from(id.max(0)).map_err(D::Error::custom)
+}
+
+fn selected_bans(ids: Vec<i32>) -> Vec<u32> {
+    // Skipped/empty slots do not represent banned champions.
+    ids.into_iter()
+        .filter_map(|id| u32::try_from(id).ok().filter(|id| *id != 0))
+        .collect()
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -27,7 +40,9 @@ pub enum ActionType {
 #[serde(rename_all = "camelCase")]
 pub struct Ally {
     pub cell_id: i32,
+    #[serde(deserialize_with = "champion_id")]
     pub champion_id: u32,
+    #[serde(deserialize_with = "champion_id")]
     pub champion_pick_intent: u32,
     pub assigned_position: Position,
 }
@@ -36,6 +51,7 @@ pub struct Ally {
 #[serde(rename_all = "camelCase")]
 pub struct Enemy {
     pub cell_id: i32,
+    #[serde(deserialize_with = "champion_id")]
     pub champion_id: u32,
 }
 
@@ -78,6 +94,7 @@ pub struct ChampSelectSnapshot {
 #[serde(rename_all = "camelCase")]
 struct Action {
     actor_cell_id: i32,
+    #[serde(deserialize_with = "champion_id")]
     champion_id: u32,
     completed: bool,
     is_in_progress: bool,
@@ -140,20 +157,8 @@ impl Session {
             my_team: self.my_team,
             their_team: self.their_team,
             bans: Bans {
-                my_team_bans: self
-                    .bans
-                    .my_team_bans
-                    .into_iter()
-                    .filter(|id| *id > 0)
-                    .filter_map(|id| u32::try_from(id).ok())
-                    .collect(),
-                their_team_bans: self
-                    .bans
-                    .their_team_bans
-                    .into_iter()
-                    .filter(|id| *id > 0)
-                    .filter_map(|id| u32::try_from(id).ok())
-                    .collect(),
+                my_team_bans: selected_bans(self.bans.my_team_bans),
+                their_team_bans: selected_bans(self.bans.their_team_bans),
             },
             current_action: current.map_or(ActionType::None, |action| action.action_type),
             is_local_players_turn: current
@@ -183,6 +188,8 @@ mod tests {
             .expect("draft event");
         let mut raw = frame[2]["data"].clone();
         raw["myTeam"][0]["assignedPosition"] = Value::String("SENTINEL_NAME_DO_NOT_SHOW".into());
+        raw["myTeam"][0]["championId"] = Value::from(-1);
+        raw["theirTeam"][0]["championId"] = Value::from(-1);
         let snapshot = serde_json::from_value::<Session>(raw)
             .expect("valid draft")
             .normalize(420, vec![1, 2]);
@@ -197,6 +204,8 @@ mod tests {
             assert!(!output.to_lowercase().contains(&forbidden.to_lowercase()));
         }
         assert_eq!(snapshot.my_team[0].assigned_position, Position::Unassigned);
+        assert_eq!(snapshot.my_team[0].champion_id, 0);
+        assert_eq!(snapshot.their_team[0].champion_id, 0);
         assert_eq!(snapshot.queue_id, 420);
         assert_eq!(snapshot.pickable_champion_ids, [1, 2]);
         assert_eq!(snapshot.current_action, ActionType::Pick);

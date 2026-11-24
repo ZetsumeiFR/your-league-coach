@@ -5,7 +5,7 @@ use reqwest::{Client, Method, StatusCode, header::HeaderValue, redirect::Policy}
 use rustls::{ClientConfig, RootCertStore};
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::{Error, discovery::Credentials};
+use super::{Error, discovery::Credentials, tls::LoopbackVerifier};
 
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -28,14 +28,14 @@ pub fn pinned_tls_from(override_path: Option<&Path>) -> Result<ClientConfig, Err
     if roots.is_empty() {
         return Err(Error::Tls);
     }
-    // No platform roots, fallback verifier, or disabled hostname checks.
-    Ok(
-        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-            .with_safe_default_protocol_versions()
-            .map_err(|_| Error::Tls)?
-            .with_root_certificates(roots)
-            .with_no_client_auth(),
-    )
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let verifier = LoopbackVerifier::new(roots, provider.signature_verification_algorithms);
+    Ok(ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|_| Error::Tls)?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(verifier))
+        .with_no_client_auth())
 }
 
 /// Use this for loopback Riot HTTPS clients (LCU and Live Client Data).

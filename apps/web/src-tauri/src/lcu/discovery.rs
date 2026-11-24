@@ -1,6 +1,6 @@
 use std::{ffi::OsStr, fs, path::Path};
 
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 use super::Error;
 
@@ -63,6 +63,19 @@ fn parse_args<'a>(args: impl Iterator<Item = &'a str>) -> Result<Credentials, Er
     )
 }
 
+fn discover_process(names: &[&str]) -> Option<Credentials> {
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always),
+    );
+    names
+        .iter()
+        .flat_map(|name| system.processes_by_exact_name(OsStr::new(name)))
+        .find_map(|process| parse_args(process.cmd().iter().filter_map(|arg| arg.to_str())).ok())
+}
+
 pub fn discover(
     override_path: Option<&Path>,
     settings_path: Option<&Path>,
@@ -71,15 +84,8 @@ pub fn discover(
         // An explicit override must not silently connect to a different client.
         return read_lockfile(path);
     }
-    let mut system = System::new();
-    system.refresh_processes(ProcessesToUpdate::All, true);
-    for name in ["LeagueClientUx", "LeagueClientUx.exe"] {
-        for process in system.processes_by_exact_name(OsStr::new(name)) {
-            if let Ok(credentials) = parse_args(process.cmd().iter().filter_map(|arg| arg.to_str()))
-            {
-                return Ok(Some(credentials));
-            }
-        }
+    if let Some(credentials) = discover_process(&["LeagueClientUx", "LeagueClientUx.exe"]) {
+        return Ok(Some(credentials));
     }
     let default = if cfg!(target_os = "windows") {
         Some(r"C:\Riot Games\League of Legends\lockfile")
@@ -138,5 +144,70 @@ mod tests {
         assert_eq!(credentials.password, "example-token");
         assert!(parse_args(["--app-port=4312"].into_iter()).is_err());
         assert!(parse_args(["--app-port=0", "--remoting-auth-token=x"].into_iter()).is_err());
+    }
+
+    #[tokio::test]
+    async fn discovers_arguments_of_a_running_named_process() {
+        use std::{process::Stdio, time::Duration};
+        use tokio::{
+            io::{AsyncBufReadExt, BufReader},
+            process::Command,
+            time::timeout,
+        };
+
+        const CHILD_MARKER: &str = "YLC_DISCOVERY_TEST_CHILD";
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            use std::io::{Write, stdin, stdout};
+            writeln!(stdout(), "ready").expect("announce child readiness");
+            stdout().flush().expect("flush child readiness");
+            stdin()
+                .read_line(&mut String::new())
+                .expect("parent shutdown");
+            return;
+        }
+        let directory = tempfile::tempdir().expect("temporary process directory");
+        let name = format!(
+            "YlcLcu{}{}",
+            std::process::id(),
+            std::env::consts::EXE_SUFFIX
+        );
+        let executable = directory.path().join(&name);
+        let test_binary = std::env::current_exe().expect("test executable");
+        fs::copy(test_binary, &executable).expect("copy test binary under a unique process name");
+        let mut child = Command::new(executable)
+            .env(CHILD_MARKER, "1")
+            .args([
+                "--nocapture",
+                "--exact",
+                "--",
+                "lcu::discovery::tests::discovers_arguments_of_a_running_named_process",
+                "--app-port=4312",
+                "--remoting-auth-token=example-token",
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .expect("launch named process");
+        let mut stdout = BufReader::new(child.stdout.take().expect("child stdout")).lines();
+        let deadline = Duration::from_secs(5);
+        timeout(deadline, async {
+            while let Some(line) = stdout.next_line().await.expect("read child stdout") {
+                if line == "ready" {
+                    return;
+                }
+            }
+            panic!("named process exited before readiness");
+        })
+        .await
+        .expect("named process readiness deadline");
+        let credentials =
+            discover_process(&[name.as_str()]).expect("OS discovery reads child argv");
+        assert_eq!(credentials.port, 4312);
+        assert!(credentials.password == "example-token");
+        timeout(deadline, child.kill())
+            .await
+            .expect("child shutdown deadline")
+            .expect("kill and reap child");
     }
 }

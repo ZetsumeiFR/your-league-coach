@@ -3,6 +3,7 @@ pub mod commands;
 pub mod discovery;
 mod events;
 pub mod snapshot;
+mod tls;
 
 use std::{path::PathBuf, time::Duration};
 

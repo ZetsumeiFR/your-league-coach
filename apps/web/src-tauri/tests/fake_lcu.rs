@@ -225,6 +225,7 @@ async fn real_supervisor_replays_draft_reconnects_and_rejects_wrong_ca() {
         let snapshots = [supervisor.snapshot().await, supervisor.snapshot().await];
         assert!(snapshots.iter().all(|snapshot| snapshot.queue_id == 420));
         assert!(snapshots.iter().all(|snapshot| snapshot.local_pick.champion_id == 103));
+        assert!(snapshots.iter().all(|snapshot| snapshot.bans.their_team_bans == [55, 7]));
         assert_eq!(snapshots.map(|snapshot| snapshot.local_pick.completed), [false, true]);
 
         // The next (ARAM) event is a barrier: extra ranked snapshots fail here.
@@ -265,6 +266,8 @@ async fn real_supervisor_replays_draft_reconnects_and_rejects_wrong_ca() {
         supervisor.status(State::Searching).await;
 
         let fake = Fake::start(&lockfile, &other_certs).await;
+        let client = pinned_http(pinned_tls_from(Some(&ca)).expect("trusted CA")).expect("QA HTTP");
+        assert!(client.post(fake.replay_url("champ-select-ranked")).send().await.expect_err("foreign CA must fail HTTPS").is_connect());
         match supervisor.next().await {
             Notification::Diagnostic(Error::Tls) => {}
             _ => panic!("expected TLS rejection before any connected event"),
