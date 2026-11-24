@@ -1,1 +1,12 @@
 @import "@your-league-coach/ui/globals.css";
+
+/*
+ * Approved accessibility exception, and the one deliberate visual change to an
+ * installed ReUI block. The app-shell rail toggle ships with outline-none and
+ * hover-only styles, so keyboard focus on it was invisible (WCAG 2.4.7). The
+ * block stays as shipped and the ring comes from here. The toggle has no data
+ * attribute of its own, so it is matched by the block's group marker.
+ */
+[data-slot="sidebar"] .group\/rail:focus-visible {
+  @apply ring-2 ring-ring;
+}

@@ -111,16 +111,12 @@ export function Preferences() {
         {
           id: "language",
           title: t("settings.language.title"),
-          description: t("settings.language.description"),
-          badge:
+          description:
             settings.language === "auto"
-              ? {
-                  label: t("settings.language.detected", {
-                    language: t(`settings.language.${language}`),
-                  }),
-                  variant: "info-light",
-                }
-              : undefined,
+              ? t("settings.language.descriptionDetected", {
+                  language: t(`settings.language.${language}`),
+                })
+              : t("settings.language.description"),
           control: "select",
           options: LANGUAGE_SETTINGS.map((option) => ({
             label: t(`settings.language.${option}`),
