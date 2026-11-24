@@ -1,0 +1,3 @@
+{
+  "extends": "@your-league-coach/config/tsconfig.base.json"
+}
