@@ -50,7 +50,12 @@ export const liveScenario = "live-game";
 export const liveArmorScenario = "live-game-armored";
 const liveEndScenario = "live-game-ended";
 
-export const loadScenario = async (name: string | null) => {
+/**
+ * WAMP frames of a scenario, or null for an unknown name. `rankedJsonl` is the
+ * text of champ-select-ranked.jsonl: the caller reads it, so this module also
+ * loads in a browser (the desktop IPC mock replays the same scenarios).
+ */
+export const scenarioFrames = (name: string | null, rankedJsonl: string) => {
   if (name === liveScenario || name === liveArmorScenario) {
     return [
       frame(flowPath, { gameData: { queue: { id: 420 } } }),
@@ -61,10 +66,7 @@ export const loadScenario = async (name: string | null) => {
     return [frame(phasePath, "EndOfGame")];
   }
   if (name === rankedScenario) {
-    const jsonl = await file(
-      `${import.meta.dir}/${rankedScenario}.jsonl`
-    ).text();
-    return jsonl.trim().split(lineBreak);
+    return rankedJsonl.trim().split(lineBreak);
   }
   if (name !== "champ-select-aram" && name !== "champ-select-arena") {
     return null;
@@ -90,5 +92,3 @@ export const loadScenario = async (name: string | null) => {
     }),
   ];
 };
-
-import { file } from "bun";

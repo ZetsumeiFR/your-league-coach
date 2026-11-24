@@ -1,54 +1,61 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Stats } from "@your-league-coach/ui/components/blocks/stats-8/components/stats";
+import { buttonVariants } from "@your-league-coach/ui/components/button";
 
-import { orpc } from "@/utils/orpc";
+import { CollectorAlert } from "@/components/home/collector-alert";
+import {
+  useClientCard,
+  usePatchCard,
+  useServerCard,
+} from "@/components/home/stat-cards";
+import { appIcons } from "@/components/icons";
+import { IdleState } from "@/components/idle-state";
+import { LOCKFILE_INPUT_ID } from "@/components/settings/preferences";
+import { useT } from "@/i18n/use-t";
+import { useDesktop } from "@/lib/desktop/store";
+import { useServerStatus } from "@/lib/server-status";
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
 });
 
-const TITLE_TEXT = `
- ██████╗ ███████╗████████╗████████╗███████╗██████╗
- ██╔══██╗██╔════╝╚══██╔══╝╚══██╔══╝██╔════╝██╔══██╗
- ██████╔╝█████╗     ██║      ██║   █████╗  ██████╔╝
- ██╔══██╗██╔══╝     ██║      ██║   ██╔══╝  ██╔══██╗
- ██████╔╝███████╗   ██║      ██║   ███████╗██║  ██║
- ╚═════╝ ╚══════╝   ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═╝
-
- ████████╗    ███████╗████████╗ █████╗  ██████╗██╗  ██╗
- ╚══██╔══╝    ██╔════╝╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝
-    ██║       ███████╗   ██║   ███████║██║     █████╔╝
-    ██║       ╚════██║   ██║   ██╔══██║██║     ██╔═██╗
-    ██║       ███████║   ██║   ██║  ██║╚██████╗██║  ██╗
-    ╚═╝       ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
- `;
-
-function getStatusLabel(isLoading: boolean, isConnected: boolean) {
-  if (isLoading) {
-    return "Checking...";
-  }
-  return isConnected ? "Connected" : "Disconnected";
-}
+const LOCKFILE_LINK = buttonVariants({ size: "sm", variant: "outline" });
 
 function HomeComponent() {
-  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  const t = useT();
+  const { lcu } = useDesktop();
+  const { status } = useServerStatus();
+  const cards = [useClientCard(), useServerCard(), usePatchCard()];
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-2">
-      <pre className="overflow-x-auto font-mono text-sm">{TITLE_TEXT}</pre>
-      <div className="grid gap-6">
-        <section className="rounded-lg border p-4">
-          <h2 className="mb-2 font-medium">API Status</h2>
-          <div className="flex items-center gap-2">
-            <div
-              className={`h-2 w-2 rounded-full ${healthCheck.data ? "bg-green-500" : "bg-red-500"}`}
-            />
-            <span className="text-muted-foreground text-sm">
-              {getStatusLabel(healthCheck.isLoading, Boolean(healthCheck.data))}
-            </span>
-          </div>
-        </section>
-      </div>
-    </div>
+    <>
+      <h1 className="sr-only">{t("nav.home")}</h1>
+      {status.kind === "online" ? (
+        <CollectorAlert
+          checkedAt={status.checkedAt}
+          collector={status.meta.collector}
+        />
+      ) : null}
+      {/* The block lays its tiles out against the width of this container. */}
+      <section className="@container">
+        <Stats cards={cards} />
+      </section>
+      {lcu === "connected" ? null : (
+        <IdleState
+          action={
+            <Link
+              className={LOCKFILE_LINK}
+              hash={LOCKFILE_INPUT_ID}
+              to="/settings"
+            >
+              {t("home.empty.action")}
+            </Link>
+          }
+          description={t("home.empty.description")}
+          icon={appIcons.disconnected}
+          title={t("home.empty.title")}
+        />
+      )}
+    </>
   );
 }

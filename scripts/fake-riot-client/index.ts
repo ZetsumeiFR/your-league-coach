@@ -21,11 +21,12 @@ import {
   flowPath,
   liveArmorScenario,
   liveScenario,
-  loadScenario,
   phasePath,
   rankedPickableChampionIds,
+  rankedScenario,
+  scenarioFrames,
 } from "./fixtures/lcu/scenarios";
-import allGameData from "./fixtures/live/allgamedata.json";
+import { liveGameData } from "./fixtures/live/scenarios";
 
 type Subscription = Readonly<{ topics: Set<string> }>;
 type RecordedRequest = Readonly<{
@@ -56,15 +57,11 @@ let nextPageId = 103;
 let currentItemSets: unknown = itemSets;
 let currentSelection: unknown = selection;
 let replaying = false;
-let liveData = allGameData;
+let liveData = liveGameData(false);
 const livePath = "/liveclientdata/allgamedata";
-
-const armorItems = [3047, 3075, 3110].map((itemID, slot) => ({
-  count: 1,
-  displayName: "SENTINEL_NAME_DO_NOT_SHOW",
-  itemID,
-  slot,
-}));
+const rankedJsonl = await file(
+  `${import.meta.dir}/fixtures/lcu/${rankedScenario}.jsonl`
+).text();
 
 const rest = new Map<string, unknown>([
   ["/lol-summoner/v1/current-summoner", summoner],
@@ -100,7 +97,7 @@ const replay = async (url: URL) => {
   replaying = true;
   try {
     const scenario = url.searchParams.get("scenario");
-    const frames = await loadScenario(scenario);
+    const frames = scenarioFrames(scenario, rankedJsonl);
     if (!frames) {
       return notFound();
     }
@@ -113,14 +110,7 @@ const replay = async (url: URL) => {
       frame: wampEvent.parse(JSON.parse(text)),
     }));
     if (scenario === liveScenario || scenario === liveArmorScenario) {
-      liveData = {
-        ...allGameData,
-        allPlayers: allGameData.allPlayers.map((player) =>
-          scenario === liveArmorScenario && player.team === "CHAOS"
-            ? { ...player, items: armorItems }
-            : player
-        ),
-      };
+      liveData = liveGameData(scenario === liveArmorScenario);
       gameflow.delete(draftPath);
     }
     const firstDraft = events.findIndex(

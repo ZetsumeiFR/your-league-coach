@@ -24,6 +24,11 @@
       "linter": { "enabled": true }
     },
     {
+      // Build-time constant that apps/web/vite.config.ts defines.
+      "includes": ["apps/web/src/**"],
+      "javascript": { "globals": ["__YLC_MOCK_IPC__"] }
+    },
+    {
       "includes": ["packages/ui/src/components/input-group.tsx"],
       "linter": {
         "rules": {
@@ -47,6 +52,20 @@
           "a11y": {
             "useFocusableInteractive": "off",
             "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/components/field.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": { "useSemanticElements": "off" },
+          "suspicious": {
+            "noArrayIndexKey": "off",
+            "noDoubleEquals": "off",
+            "noLeakedRender": "off",
+            "noUnnecessaryConditions": "off"
           }
         }
       }
@@ -99,9 +118,17 @@
         }
       }
     },
+    {
+      // The block ships its select handler inline; kept as shipped.
+      "includes": [
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx"
+      ],
+      "linter": { "rules": { "performance": { "noJsxPropsBind": "off" } } }
+    },
     // Installed registry items must render the registry's markup unchanged, so
-    // the rules that reorder JSX attributes or class strings are off for exactly
-    // the files below. Add a newly installed file only where the rule fires.
+    // the rules that reorder JSX attributes or class strings are off for the
+    // files below: every file where a rule fires, and every retained file of an
+    // installed block whether or not it fires today.
     {
       "includes": [
         "packages/ui/src/reui/icons/default/outline/arrow-down-right.tsx",
@@ -109,6 +136,7 @@
         "packages/ui/src/reui/icons/default/outline/arrows-diagonal.tsx",
         "packages/ui/src/reui/icons/default/outline/cloud.tsx",
         "packages/ui/src/reui/icons/default/outline/cross-circle.tsx",
+        "packages/ui/src/reui/icons/default/outline/crown.tsx",
         "packages/ui/src/reui/icons/default/outline/disconnect.tsx",
         "packages/ui/src/reui/icons/default/outline/entrance-up.tsx",
         "packages/ui/src/reui/icons/default/outline/exclamation-circle.tsx",
@@ -137,8 +165,18 @@
     {
       "includes": [
         "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-shell.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-sidebar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-main.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-secondary.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/general-settings.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
+        "packages/ui/src/components/blocks/stats-8/components/stats.tsx",
         "packages/ui/src/components/breadcrumb.tsx",
         "packages/ui/src/components/examples/c-progress-2.tsx",
+        "packages/ui/src/components/field.tsx",
         "packages/ui/src/components/item.tsx",
         "packages/ui/src/components/kbd.tsx",
         "packages/ui/src/components/progress.tsx",
@@ -161,9 +199,19 @@
     {
       "includes": [
         "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-shell.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-sidebar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-main.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-secondary.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/general-settings.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
+        "packages/ui/src/components/blocks/stats-8/components/stats.tsx",
         "packages/ui/src/components/breadcrumb.tsx",
         "packages/ui/src/components/examples/c-frame-2.tsx",
         "packages/ui/src/components/examples/c-frame-3.tsx",
+        "packages/ui/src/components/field.tsx",
         "packages/ui/src/components/item.tsx",
         "packages/ui/src/components/kbd.tsx",
         "packages/ui/src/components/progress.tsx",

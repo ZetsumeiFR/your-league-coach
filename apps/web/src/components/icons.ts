@@ -3,6 +3,7 @@ import ArrowUpLeftIcon from "@your-league-coach/ui/reui/icons/default/outline/ar
 import ArrowsDiagonalIcon from "@your-league-coach/ui/reui/icons/default/outline/arrows-diagonal";
 import CloudIcon from "@your-league-coach/ui/reui/icons/default/outline/cloud";
 import CrossCircleIcon from "@your-league-coach/ui/reui/icons/default/outline/cross-circle";
+import CrownIcon from "@your-league-coach/ui/reui/icons/default/outline/crown";
 import DisconnectIcon from "@your-league-coach/ui/reui/icons/default/outline/disconnect";
 import EntranceUpIcon from "@your-league-coach/ui/reui/icons/default/outline/entrance-up";
 import ExclamationCircleIcon from "@your-league-coach/ui/reui/icons/default/outline/exclamation-circle";
@@ -33,6 +34,8 @@ type AppIcon = ComponentType<{ className?: string }>;
  * and add a key here.
  */
 export const appIcons = {
+  // The app's own mark in the sidebar; kept apart from every screen icon.
+  brand: CrownIcon,
   home: HomeIcon,
   draft: TargetIcon,
   build: WrenchIcon,
