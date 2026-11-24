@@ -158,7 +158,7 @@ export const en = {
       fr: "Français",
       en: "English",
       descriptionDetected:
-        "Auto follows the language of your League client. Detected: {language}.",
+        "Detected: {language}. Auto follows the language of your League client.",
     },
     autoImport: {
       title: "Automatic import",

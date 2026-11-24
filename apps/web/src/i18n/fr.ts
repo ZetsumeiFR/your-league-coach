@@ -155,7 +155,7 @@ export const fr: Dictionary = {
       fr: "Français",
       en: "English",
       descriptionDetected:
-        "Auto suit la langue de ton client League. Détectée\u00a0: {language}.",
+        "Détectée\u00a0: {language}. Auto suit la langue de ton client League.",
     },
     autoImport: {
       title: "Import automatique",
