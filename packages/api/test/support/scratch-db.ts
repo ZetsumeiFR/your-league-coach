@@ -19,16 +19,22 @@ export async function createScratchDatabase(
 ): Promise<ScratchDatabase> {
   const name = `ylc_api_test_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const admin = createDb({ DATABASE_URL: baseUrl });
-  await admin.execute(sql.raw(`CREATE DATABASE "${name}"`));
+  try {
+    await admin.execute(sql.raw(`CREATE DATABASE "${name}"`));
+  } finally {
+    await admin.$client.end();
+  }
   const url = new URL(baseUrl);
   url.pathname = `/${name}`;
   const db = createDb({ DATABASE_URL: url.toString() });
   const drop = async () => {
     await db.$client.end();
-    await admin.execute(
-      sql.raw(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
-    );
-    await admin.$client.end();
+    const dropAdmin = createDb({ DATABASE_URL: baseUrl });
+    try {
+      await dropAdmin.execute(sql.raw(`DROP DATABASE IF EXISTS "${name}"`));
+    } finally {
+      await dropAdmin.$client.end();
+    }
   };
   try {
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
