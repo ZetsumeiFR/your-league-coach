@@ -258,6 +258,70 @@ describe("automatic import in ARAM", () => {
     expect(calls).toEqual(commandsOf(ASHE));
   });
 
+  /**
+   * An importer fed as the component feeds it: the draft now, the champion its
+   * one-second debounce still holds, and the build on screen.
+   */
+  const watching = () => {
+    const { calls, hold, send } = client();
+    const importer = createAutoImporter<Build>();
+    const see = (
+      draft: DraftState,
+      settledAramChampionId: number,
+      build: Build | null
+    ) =>
+      importer.update({
+        build,
+        seen: sightingOf(draft, {
+          autoImport: true,
+          session: 1,
+          settledAramChampionId,
+        }),
+        send,
+      });
+    return { calls, hold, see };
+  };
+  const assigned = (championId: number) =>
+    aramDraft({ championId, championPickIntent: 0 });
+  const withdrawn = aramDraft({ championId: 0, championPickIntent: 0 });
+  const declared = aramDraft({ championId: 0, championPickIntent: ASHE });
+
+  it("drops an import still waiting for its build once the assignment is withdrawn", async () => {
+    const { calls, see } = watching();
+    await see(assigned(ASHE), ASHE, null);
+
+    await see(withdrawn, ASHE, null);
+    await see(withdrawn, ASHE, buildOf(ASHE));
+    await see(withdrawn, 0, buildOf(ASHE));
+    expect(calls).toEqual([]);
+
+    await see(declared, ASHE, buildOf(ASHE));
+    await see(declared, 0, buildOf(ASHE));
+    expect(calls).toEqual([]);
+
+    await see(assigned(ASHE), 0, buildOf(ASHE));
+    expect(calls).toEqual([]);
+    await see(assigned(ASHE), ASHE, buildOf(ASHE));
+    await see(assigned(ASHE), ASHE, buildOf(ASHE));
+    expect(calls).toEqual(commandsOf(ASHE));
+  });
+
+  it("sends nothing after the import in progress when the assignment was withdrawn meanwhile", async () => {
+    const { calls, hold, see } = watching();
+    await see(assigned(ASHE), ASHE, buildOf(ASHE));
+    expect(calls).toEqual(commandsOf(ASHE));
+
+    const release = hold(JINX);
+    const importingJinx = see(assigned(JINX), JINX, buildOf(JINX));
+    await see(assigned(ASHE), ASHE, buildOf(ASHE));
+    await see(declared, ASHE, buildOf(ASHE));
+    await see(declared, 0, buildOf(ASHE));
+
+    release();
+    await importingJinx;
+    expect(calls.slice(3)).toEqual(commandsOf(JINX));
+  });
+
   it("waits on no champion on the Rift, where the lock decides", () => {
     expect(aramChampionId(withLocal(locked, { championId: AHRI }))).toBe(0);
   });

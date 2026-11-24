@@ -23,7 +23,8 @@ export interface DraftSighting {
   autoImport: boolean;
   /**
    * On the Rift, the champion of the local pick. In ARAM, the champion
-   * assigned to the local player once it has stopped changing; 0 until then.
+   * assigned to the local player now, once it has stopped changing; 0 while
+   * none is assigned or while it has just changed.
    */
   championId: number;
   completed: boolean;
@@ -38,6 +39,17 @@ export interface DraftSighting {
  */
 export const aramChampionId = (draft: DraftState): number =>
   draftMode(draft.queueId) === "aram" ? assignedChampionId(draft) : 0;
+
+/**
+ * The assigned champion, once the debounce holds that same champion. What the
+ * debounce still holds after the assignment changed or was withdrawn is not
+ * assigned any more and counts for nothing.
+ */
+const settledAssignment = (
+  draft: DraftState,
+  settledAramChampionId: number
+): number =>
+  settledAramChampionId === aramChampionId(draft) ? settledAramChampionId : 0;
 
 export const sightingOf = (
   draft: DraftState,
@@ -56,7 +68,9 @@ export const sightingOf = (
   return {
     autoImport,
     championId:
-      mode === "aram" ? settledAramChampionId : draft.localPick.championId,
+      mode === "aram"
+        ? settledAssignment(draft, settledAramChampionId)
+        : draft.localPick.championId,
     completed: draft.localPick.completed,
     mode,
     session,
@@ -65,7 +79,9 @@ export const sightingOf = (
 
 const nextTarget = (memory: AutoImportMemory, seen: DraftSighting): number => {
   if (seen.mode === "aram") {
-    return seen.championId || memory.target;
+    // Nothing is kept from earlier sightings: an import that was waiting goes
+    // with its assignment, and only an assignment makes one due again.
+    return seen.championId;
   }
   const isLockIn =
     seen.mode === "rift" &&
@@ -80,9 +96,9 @@ const nextTarget = (memory: AutoImportMemory, seen: DraftSighting): number => {
  * On the Rift an import is wanted once, when the pick goes from unlocked to
  * locked in front of this window: never on a hover, on a lock seen again, or
  * on a pick that was already locked when the window first saw it. In ARAM it
- * is wanted for each champion the player settles on. While the setting is off
- * nothing is wanted, and switching it on imports nothing by itself. Seeing
- * the same thing twice changes nothing.
+ * is wanted for the champion assigned to the player, for as long as it is
+ * assigned. While the setting is off nothing is wanted, and switching it on
+ * imports nothing by itself. Seeing the same thing twice changes nothing.
  */
 const observeDraft = (
   memory: AutoImportMemory,
@@ -93,11 +109,12 @@ const observeDraft = (
       ? memory
       : { ...NO_AUTO_IMPORT, session: seen.session };
   const target = nextTarget(current, seen);
+  const isSkippedWhileOff = !seen.autoImport && target !== 0;
   return {
     session: current.session,
     sawUnlocked: current.sawUnlocked || !seen.completed,
     target,
-    imported: seen.autoImport ? current.imported : target,
+    imported: isSkippedWhileOff ? target : current.imported,
   };
 };
 
