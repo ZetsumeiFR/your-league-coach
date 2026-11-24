@@ -6,14 +6,16 @@ import { logProcedureErrors } from "@your-league-coach/api/error-log";
 import { appRouter } from "@your-league-coach/api/routers/index";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 
+import { accessLog } from "./access-log";
 import { createContext } from "./context";
 import { desktopOrigins, ENV } from "./env.server";
 
+const logError = (line: string) => console.error(line);
+
 const app = new Hono();
 
-app.use(logger());
+app.use(accessLog());
 app.use(
   "/*",
   cors({
@@ -30,11 +32,11 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
       schemaConverters: [new ZodToJsonSchemaConverter()],
     }),
   ],
-  clientInterceptors: [logProcedureErrors(console.error)],
+  clientInterceptors: [logProcedureErrors(logError)],
 });
 
 export const rpcHandler = new RPCHandler(appRouter, {
-  clientInterceptors: [logProcedureErrors(console.error)],
+  clientInterceptors: [logProcedureErrors(logError)],
 });
 
 app.use("/*", async (c, next) => {
