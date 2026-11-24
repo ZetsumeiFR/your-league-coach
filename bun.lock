@@ -127,6 +127,16 @@
         "varlock": "catalog:",
       },
     },
+    "packages/lol-data": {
+      "name": "@your-league-coach/lol-data",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@your-league-coach/config": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "packages/ui": {
       "name": "@your-league-coach/ui",
       "version": "0.0.0",
@@ -585,6 +595,8 @@
     "@your-league-coach/config": ["@your-league-coach/config@workspace:packages/config"],
 
     "@your-league-coach/db": ["@your-league-coach/db@workspace:packages/db"],
+
+    "@your-league-coach/lol-data": ["@your-league-coach/lol-data@workspace:packages/lol-data"],
 
     "@your-league-coach/ui": ["@your-league-coach/ui@workspace:packages/ui"],
 
