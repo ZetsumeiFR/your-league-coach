@@ -38,6 +38,7 @@ interface RiotClientOptions {
 
 interface MatchListOptions {
   readonly count?: number;
+  readonly endTime?: number;
   readonly queue: number;
   readonly start?: number;
   readonly startTime?: number;
@@ -68,7 +69,8 @@ export class RiotClient {
     queue: typeof SOLO_LEAGUE_QUEUE,
     tier: "EMERALD" | "DIAMOND",
     division: "I" | "II" | "III" | "IV",
-    page: number
+    page: number,
+    limit?: number
   ): Promise<LeagueEntry[]> {
     const entries = await this.#request(
       this.#platform,
@@ -76,7 +78,7 @@ export class RiotClient {
       `/lol/league-exp/v4/entries/${queue}/${tier}/${division}?page=${page}`,
       leagueEntriesSchema
     );
-    return await this.#resolveEntries(entries);
+    return await this.#resolveEntries(entries.slice(0, limit));
   }
 
   async apexLeague(tier: "challenger" | "grandmaster" | "master") {
@@ -97,6 +99,9 @@ export class RiotClient {
     });
     if (options.startTime !== undefined) {
       query.set("startTime", String(options.startTime));
+    }
+    if (options.endTime !== undefined) {
+      query.set("endTime", String(options.endTime));
     }
     if (options.start !== undefined) {
       query.set("start", String(options.start));
@@ -127,26 +132,25 @@ export class RiotClient {
     );
   }
 
-  #resolveEntries(entries: z.infer<typeof leagueEntriesSchema>) {
+  async #resolveEntries(entries: z.infer<typeof leagueEntriesSchema>) {
     const resolved: LeagueEntry[] = [];
-    const resolveNext = async (index: number): Promise<LeagueEntry[]> => {
-      const entry = entries[index];
-      if (entry === undefined) {
-        return resolved;
-      }
-      resolved.push(
-        "puuid" in entry
-          ? entry
-          : await this.#request(
-              this.#platform,
-              "summonerById",
-              `/lol/summoner/v4/summoners/${encodeURIComponent(entry.summonerId)}`,
-              puuidSchema
-            )
-      );
-      return await resolveNext(index + 1);
-    };
-    return resolveNext(0);
+    for await (const entry of this.#entryLookups(entries)) {
+      resolved.push(entry);
+    }
+    return resolved;
+  }
+
+  *#entryLookups(entries: z.infer<typeof leagueEntriesSchema>) {
+    for (const entry of entries) {
+      yield "puuid" in entry
+        ? entry
+        : this.#request(
+            this.#platform,
+            "summonerById",
+            `/lol/summoner/v4/summoners/${encodeURIComponent(entry.summonerId)}`,
+            puuidSchema
+          );
+    }
   }
 
   async #request<T>(
