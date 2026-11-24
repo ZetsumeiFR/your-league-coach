@@ -47,6 +47,13 @@ describe("ddragon fixtures", () => {
     expect(giantsBelt?.onHowlingAbyss).toBe(true);
   });
 
+  it("preserves the Wounds keyword in the item tooltip", async () => {
+    const items = parseItems(await fixture("item.en_US.json"));
+    expect(items.find(({ id }) => id === 3165)?.description).toContain(
+      "<keyword>40% Wounds</keyword>"
+    );
+  });
+
   it("parses rune trees", async () => {
     const trees = parseRunes(await fixture("runesReforged.en_US.json"));
     expect(trees.length).toBe(5);
