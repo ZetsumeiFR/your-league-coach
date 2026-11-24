@@ -32,7 +32,7 @@ Each app owns an `.env.schema` (validated by [Varlock](https://varlock.dev)); re
 | `apps/server/.env` | `COACH_ACCESS_KEY` (shared key, at least 32 characters), `CORS_ORIGIN`, `DATABASE_URL` (overridden by Compose). |
 | `apps/web/.env` | Web/desktop public settings. |
 
-A collector started without `RIOT_API_KEY` exits immediately with a Varlock validation error.
+A collector started without `RIOT_API_KEY` (in any mode, including `--no-crawl`) exits immediately with a Varlock validation error naming the variable.
 
 ## Deploy on a VPS
 

@@ -8,6 +8,7 @@ import {
 } from "@your-league-coach/lol-data/ddragon";
 import { aggregateStats, type LoadChampions } from "./aggregate";
 import { crawlOnce, crawlWindow, createCrawlQueueRotation } from "./crawl";
+import { ENV } from "./env";
 import { checkPatches } from "./patch";
 import { retainStats } from "./retention";
 import { RiotClient } from "./riot/client";
@@ -202,11 +203,6 @@ const scheduledRiot = (work: RiotWork) => {
   };
 };
 
-const needsRiotKey = (command: Command): boolean =>
-  command.mode === "scheduled"
-    ? command.crawl
-    : command.job === "seed" || command.job === "crawl";
-
 const reportFailure = async (
   db: ReturnType<typeof createDb>,
   command: Command,
@@ -242,13 +238,7 @@ const run = async (args: readonly string[]) => {
     RIOT_API_KEY,
     RIOT_PLATFORM,
     RIOT_REGION,
-  } = process.env;
-  if (!DATABASE_URL || (needsRiotKey(command) && !RIOT_API_KEY)) {
-    process.stderr.write(
-      "DATABASE_URL and (when Riot jobs are enabled) RIOT_API_KEY are required\n"
-    );
-    return 1;
-  }
+  } = ENV;
   const db = createDb({ DATABASE_URL });
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -268,11 +258,11 @@ const run = async (args: readonly string[]) => {
       await runScheduler({ db, jobs, log: writeLog, signal });
       return 0;
     }
-    const apiKey = RIOT_API_KEY ?? "";
+    const apiKey = RIOT_API_KEY;
     const riot = new RiotClient({
       apiKey,
-      platform: RIOT_PLATFORM ?? "euw1",
-      region: RIOT_REGION ?? "europe",
+      platform: RIOT_PLATFORM,
+      region: RIOT_REGION,
       limiter: new RiotRateLimiter(),
       signal,
       transport: (url, init) => {
@@ -313,6 +303,8 @@ const run = async (args: readonly string[]) => {
 };
 
 if (import.meta.main) {
+  // Varlock validates .env.schema (RIOT_API_KEY, DATABASE_URL, ...) and fails fast.
+  await import("varlock/auto-load");
   process.exitCode = await run(process.argv.slice(2)).catch(() => {
     process.stderr.write("Collector job failed\n");
     return 1;
