@@ -23,6 +23,7 @@ import {
 import { isConnectionConfigured } from "@/lib/settings";
 import { useSettings } from "@/lib/settings-store";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { useStickyFailure } from "@/lib/use-sticky-failure";
 import {
   classifyServerError,
   orpc,
@@ -31,7 +32,7 @@ import {
 } from "@/utils/orpc";
 
 /** A burst of client events (hover, lock, timer) settles into one request. */
-const DRAFT_DEBOUNCE_MS = 300;
+export const DRAFT_DEBOUNCE_MS = 300;
 /** Same draft, same answer until the server aggregates again: no refetch each time the window regains focus. */
 const SUGGESTIONS_FRESH_FOR_MS = 5 * 60_000;
 /** Longer than any champion select: its pool is still held when the screen is left and opened again during it. */
@@ -101,24 +102,6 @@ const sameRoleOnly =
     previousQuery: { meta?: Record<string, unknown> } | undefined
   ): Data | undefined =>
     previousQuery?.meta?.role === role ? previous : undefined;
-
-/**
- * The last failure, kept until an answer replaces it: without it the list
- * would flicker between a placeholder and the error at every client event.
- */
-const useStickyFailure = (
-  reported: ServerFailure | null,
-  hasFreshAnswer: boolean
-): ServerFailure | null => {
-  const [last, setLast] = useState<ServerFailure | null>(null);
-  if (reported !== null && reported !== last) {
-    setLast(reported);
-  }
-  if (hasFreshAnswer && last !== null) {
-    setLast(null);
-  }
-  return last;
-};
 
 /**
  * The enemy roles of the last answer, kept while a newer request loads or

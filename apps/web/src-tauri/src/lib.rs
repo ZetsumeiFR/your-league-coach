@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use lcu::{
     Notification, Phase, State, Status, Supervisor,
     commands::{self, LcuState},
+    write::{self, WriteLock},
 };
 use tauri::{Emitter, Manager};
 use tauri_plugin_store::StoreExt;
@@ -21,6 +22,9 @@ pub fn run() {
             commands::lcu_current_summoner,
             commands::lcu_champion_mastery,
             commands::lcu_recent_games,
+            write::lcu_import_runes,
+            write::lcu_set_spells,
+            write::lcu_import_item_set,
             live::live_set_champion_ids,
         ])
         .setup(|app| {
@@ -45,6 +49,7 @@ pub fn run() {
                 status,
                 connection,
             });
+            app.manage(WriteLock::default());
             let handle = app.handle().clone();
             let (phase_tx, phase) = watch::channel(Phase::None);
             let ca_path = std::env::var_os("YLC_RIOT_CA").map(PathBuf::from);

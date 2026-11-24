@@ -83,12 +83,38 @@ export interface RecentGames {
   wins: number;
 }
 
+/** What `lcu_import_runes` fails with when every rune page slot holds a page the app did not create. */
+export const NO_FREE_PAGE = "NO_FREE_PAGE";
+
 export interface DesktopCommands {
   lcu_champion_mastery: { args: undefined; result: ChampionMastery[] };
   lcu_current_summoner: { args: undefined; result: CurrentSummoner };
+  lcu_import_item_set: {
+    args: {
+      /** Groups of the in-game shop; `type` is the title a group shows. */
+      blocks: { items: { count: number; id: number }[]; type: string }[];
+      championId: number;
+      title: string;
+    };
+    result: null;
+  };
+  lcu_import_runes: {
+    args: {
+      /** Shown in the client's rune page list. */
+      name: string;
+      primaryStyleId: number;
+      selectedPerkIds: number[];
+      subStyleId: number;
+    };
+    result: null;
+  };
   lcu_recent_games: { args: undefined; result: RecentGames[] };
   lcu_set_lockfile_path: {
     args: { lockfilePath: string | null };
+    result: null;
+  };
+  lcu_set_spells: {
+    args: { spell1Id: number; spell2Id: number };
     result: null;
   };
   lcu_status: { args: undefined; result: { state: LcuState } };
@@ -98,6 +124,9 @@ export interface DesktopCommands {
   };
 }
 export type DesktopCommandName = keyof DesktopCommands;
+export type RunePageImport = DesktopCommands["lcu_import_runes"]["args"];
+export type ItemSetImport = DesktopCommands["lcu_import_item_set"]["args"];
+export type ItemSetBlock = ItemSetImport["blocks"][number];
 
 const call = <Name extends DesktopCommandName>(
   name: Name,
@@ -109,6 +138,15 @@ export const desktop = {
   currentSummoner: () => call("lcu_current_summoner"),
   championMastery: () => call("lcu_champion_mastery"),
   recentGames: () => call("lcu_recent_games"),
+  /**
+   * The three writes to the League client. Each one rejects with the
+   * backend's text when it fails. They replace only what the app created
+   * itself (src-tauri/src/lcu/write.rs).
+   */
+  importRunes: (page: RunePageImport) => call("lcu_import_runes", page),
+  setSpells: (spell1Id: number, spell2Id: number) =>
+    call("lcu_set_spells", { spell1Id, spell2Id }),
+  importItemSet: (set: ItemSetImport) => call("lcu_import_item_set", set),
   /** Applies a lockfile path now; null goes back to automatic discovery. */
   setLockfilePath: (lockfilePath: string | null) =>
     call("lcu_set_lockfile_path", { lockfilePath }),

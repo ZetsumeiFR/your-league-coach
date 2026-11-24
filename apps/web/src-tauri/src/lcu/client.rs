@@ -72,7 +72,7 @@ impl LcuClient {
         })
     }
 
-    async fn request<T: DeserializeOwned>(
+    pub(super) async fn request<T: DeserializeOwned>(
         &self,
         method: Method,
         path: &str,

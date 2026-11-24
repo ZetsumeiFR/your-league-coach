@@ -4,7 +4,10 @@ import type {
   PlainReasonCode,
 } from "@your-league-coach/lol-data/types";
 
+import type { ItemSetBlockName } from "../lib/build/items";
+import type { ShardName } from "../lib/build/runes";
 import type { GameflowPhase } from "../lib/desktop/events";
+import type { ImportPart } from "../lib/desktop/import";
 
 /** English texts. This object is also the shape every other language must match. */
 export const en = {
@@ -56,6 +59,15 @@ export const en = {
     Unknown: "Unknown state",
   } satisfies Record<GameflowPhase, string>,
   patch: { badge: "Patch {patch}" },
+  server: {
+    error: {
+      unreachable: "No answer from the coach server.",
+      failed: "The coach server answered with an error.",
+      unauthorized: "The coach server refused the access key.",
+      retry: "Retry",
+      openSettings: "Open settings",
+    },
+  },
   home: {
     client: {
       title: "League client",
@@ -247,14 +259,7 @@ export const en = {
         description:
           "Too few games have been analysed for this role on the current patch.",
       },
-      error: {
-        title: "Suggestions unavailable",
-        unreachable: "No answer from the coach server.",
-        failed: "The coach server answered with an error.",
-        unauthorized: "The coach server refused the access key.",
-        retry: "Retry",
-        openSettings: "Open settings",
-      },
+      error: { title: "Suggestions unavailable" },
       unconfigured: {
         title: "Coach server not set up",
         description:
@@ -268,6 +273,86 @@ export const en = {
       title: "No champion selected",
       description:
         "The recommended build appears here once you hover or lock a champion.",
+    },
+    title: "Recommended build",
+    sample: {
+      games: {
+        one: "Patch {patch} · {count} game",
+        other: "Patch {patch} · {count} games",
+      },
+      blended: "Patch {patch} + previous patch · {games} games",
+    },
+    unconfigured: {
+      title: "Coach server not set up",
+      description:
+        "Enter the server address and the access key to get the build.",
+      action: "Open settings",
+    },
+    empty: {
+      title: "No build for this champion yet",
+      description:
+        "Too few games have been analysed for this champion on the current patch.",
+    },
+    error: { title: "Build unavailable" },
+    runes: {
+      title: "Runes",
+      shards: "Shards",
+      shard: {
+        healthScaling: "Scaling health",
+        attackSpeed: "Attack speed",
+        abilityHaste: "Ability haste",
+        adaptiveForce: "Adaptive force",
+        moveSpeed: "Move speed",
+        health: "Health",
+        tenacity: "Tenacity and slow resist",
+      } satisfies Record<ShardName, string>,
+    },
+    spells: { title: "Summoner spells" },
+    skills: {
+      title: "Skills",
+      opening: "Levels 1 to 3",
+      maxOrder: "Max order",
+      grid: "Skill to level up at each level",
+    },
+    items: {
+      title: "Items",
+      order: "Purchase order",
+      slots: {
+        starter: "Start",
+        boots: "Boots",
+        core: "Core",
+        situational: "Situational",
+      } satisfies Record<ItemSetBlockName, string>,
+      coreStep: "Core {rank}",
+      stack: "{item} ×{count}",
+      adjustments: "Adjusted for this draft",
+      noAdjustments: "No adjustment for the champions revealed so far.",
+      replaces: "Replaces {item}",
+      added: "Added to the build",
+    },
+    unknown: {
+      item: "Item {id}",
+      rune: "Rune {id}",
+      shard: "Shard {id}",
+      spell: "Spell {id}",
+    },
+    import: {
+      action: "Import into the client",
+      done: {
+        runes: "Runes imported",
+        spells: "Summoner spells set",
+        items: "Item set imported",
+      } satisfies Record<ImportPart, string>,
+      failed: {
+        runes: "Runes not imported",
+        spells: "Summoner spells not set",
+        items: "Item set not imported",
+      } satisfies Record<ImportPart, string>,
+      noFreePage: {
+        title: "No free rune page",
+        description:
+          "Every rune page slot holds one of your own pages. Delete one in the League client, then import again. The app only replaces pages it created.",
+      },
     },
   },
   inGame: {

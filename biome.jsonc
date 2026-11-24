@@ -11,14 +11,20 @@
       "packages/coach/src/build",
       "packages/coach/src/build/**",
       "packages/coach/test/build",
-      "packages/coach/test/build/**"
+      "packages/coach/test/build/**",
+      "apps/web/src/components/build",
+      "apps/web/src/components/build/**",
+      "apps/web/src/lib/build",
+      "apps/web/src/lib/build/**"
     ]
   },
   "overrides": [
     {
       "includes": [
         "packages/coach/src/build/**",
-        "packages/coach/test/build/**"
+        "packages/coach/test/build/**",
+        "apps/web/src/components/build/**",
+        "apps/web/src/lib/build/**"
       ],
       "formatter": { "enabled": true },
       "linter": { "enabled": true }

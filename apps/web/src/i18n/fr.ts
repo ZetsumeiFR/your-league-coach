@@ -49,6 +49,15 @@ export const fr: Dictionary = {
     Unknown: "État inconnu",
   },
   patch: { badge: "Patch {patch}" },
+  server: {
+    error: {
+      unreachable: "Aucune réponse du serveur de coaching.",
+      failed: "Le serveur de coaching a répondu par une erreur.",
+      unauthorized: "Le serveur de coaching a refusé la clé d'accès.",
+      retry: "Réessayer",
+      openSettings: "Ouvrir les réglages",
+    },
+  },
   home: {
     client: {
       title: "Client League",
@@ -245,14 +254,7 @@ export const fr: Dictionary = {
         description:
           "Trop peu de parties analysées pour ce rôle sur le patch actuel.",
       },
-      error: {
-        title: "Suggestions indisponibles",
-        unreachable: "Aucune réponse du serveur de coaching.",
-        failed: "Le serveur de coaching a répondu par une erreur.",
-        unauthorized: "Le serveur de coaching a refusé la clé d'accès.",
-        retry: "Réessayer",
-        openSettings: "Ouvrir les réglages",
-      },
+      error: { title: "Suggestions indisponibles" },
       unconfigured: {
         title: "Serveur de coaching à configurer",
         description:
@@ -266,6 +268,86 @@ export const fr: Dictionary = {
       title: "Aucun champion sélectionné",
       description:
         "Le build recommandé s'affiche ici dès que tu survoles ou verrouilles un champion.",
+    },
+    title: "Build recommandé",
+    sample: {
+      games: {
+        one: "Patch {patch} · {count} partie",
+        other: "Patch {patch} · {count} parties",
+      },
+      blended: "Patch {patch} + patch précédent · {games} parties",
+    },
+    unconfigured: {
+      title: "Serveur de coaching à configurer",
+      description:
+        "Saisis l'adresse du serveur et la clé d'accès pour obtenir le build.",
+      action: "Ouvrir les réglages",
+    },
+    empty: {
+      title: "Pas encore de build pour ce champion",
+      description:
+        "Trop peu de parties analysées pour ce champion sur le patch actuel.",
+    },
+    error: { title: "Build indisponible" },
+    runes: {
+      title: "Runes",
+      shards: "Fragments",
+      shard: {
+        healthScaling: "PV selon le niveau",
+        attackSpeed: "Vitesse d'attaque",
+        abilityHaste: "Accélération de compétence",
+        adaptiveForce: "Force adaptative",
+        moveSpeed: "Vitesse de déplacement",
+        health: "PV",
+        tenacity: "Ténacité et résistance aux ralentissements",
+      },
+    },
+    spells: { title: "Sorts d'invocateur" },
+    skills: {
+      title: "Compétences",
+      opening: "Niveaux 1 à 3",
+      maxOrder: "Ordre de max",
+      grid: "Compétence à monter à chaque niveau",
+    },
+    items: {
+      title: "Objets",
+      order: "Ordre d'achat",
+      slots: {
+        starter: "Départ",
+        boots: "Bottes",
+        core: "Core",
+        situational: "Situationnels",
+      },
+      coreStep: "Core {rank}",
+      stack: "{item} ×{count}",
+      adjustments: "Ajustés pour ce draft",
+      noAdjustments: "Aucun ajustement pour les champions révélés jusqu'ici.",
+      replaces: "Remplace {item}",
+      added: "Ajouté au build",
+    },
+    unknown: {
+      item: "Objet {id}",
+      rune: "Rune {id}",
+      shard: "Fragment {id}",
+      spell: "Sort {id}",
+    },
+    import: {
+      action: "Importer dans le client",
+      done: {
+        runes: "Runes importées",
+        spells: "Sorts d'invocateur réglés",
+        items: "Objets importés",
+      },
+      failed: {
+        runes: "Runes non importées",
+        spells: "Sorts d'invocateur non réglés",
+        items: "Objets non importés",
+      },
+      noFreePage: {
+        title: "Aucune page de runes libre",
+        description:
+          "Tous les emplacements de pages de runes sont pris par tes propres pages. Supprimes-en une dans le client League, puis réimporte. L'application ne remplace que les pages qu'elle a créées.",
+      },
     },
   },
   inGame: {
