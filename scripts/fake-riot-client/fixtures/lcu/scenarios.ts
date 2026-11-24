@@ -41,7 +41,20 @@ const frame = (uri: string, data: unknown) =>
     event(uri, data),
   ]);
 
+export const liveScenario = "live-game";
+export const liveArmorScenario = "live-game-armored";
+const liveEndScenario = "live-game-ended";
+
 export const loadScenario = async (name: string | null) => {
+  if (name === liveScenario || name === liveArmorScenario) {
+    return [
+      frame(flowPath, { gameData: { queue: { id: 420 } } }),
+      frame(phasePath, "InProgress"),
+    ];
+  }
+  if (name === liveEndScenario) {
+    return [frame(phasePath, "EndOfGame")];
+  }
   if (name === rankedScenario) {
     const jsonl = await file(
       `${import.meta.dir}/${rankedScenario}.jsonl`
