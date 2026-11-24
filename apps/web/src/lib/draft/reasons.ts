@@ -4,6 +4,8 @@ import {
 } from "@your-league-coach/lol-data/types";
 import type { BadgeProps } from "@your-league-coach/ui/components/reui/badge";
 
+import type { Translate } from "../../i18n/translate";
+
 type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 type ReasonKind = ParsedReasonCode["kind"];
 
@@ -54,6 +56,16 @@ export const orderReasons = (
       return reason ? [reason] : [];
     })
     .toSorted((a, b) => rankOf(a, laneOpponentId) - rankOf(b, laneOpponentId));
+
+export const reasonText = (
+  reason: ParsedReasonCode,
+  t: Translate,
+  nameOf: (championId: number) => string
+): string =>
+  t(
+    `reasons.${reason.kind}`,
+    "championId" in reason ? { champion: nameOf(reason.championId) } : undefined
+  );
 
 export const reasonKey = (reason: ParsedReasonCode): string =>
   "championId" in reason ? `${reason.kind}:${reason.championId}` : reason.kind;

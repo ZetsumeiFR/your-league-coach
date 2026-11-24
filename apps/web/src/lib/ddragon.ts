@@ -102,6 +102,22 @@ export const useChampionLookup = (): FindChampion => {
   }, [champions, version]);
 };
 
+/**
+ * The numeric key of the champion with this Data Dragon id ("Ahri"), which is
+ * how the live connector names the local player's champion. Undefined until
+ * Data Dragon has answered, null for an id it does not know.
+ */
+export const useChampionKey = (slug: string): number | null | undefined => {
+  const { champions } = useChampions();
+  return useMemo(
+    () =>
+      champions === undefined
+        ? undefined
+        : (champions.find(({ id }) => id === slug)?.key ?? null),
+    [champions, slug]
+  );
+};
+
 export const useItemLookup = (): FindAsset => {
   const { data: items, version } = useStaticData(itemsQuery);
   return useMemo(() => {

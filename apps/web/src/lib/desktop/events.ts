@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { DraftState } from "@your-league-coach/lol-data/types";
 
 export type LcuState = "searching" | "connected" | "disconnected";
@@ -153,4 +154,10 @@ export const desktop = {
   /** Data Dragon champion id (e.g. "Ahri") to numeric key, for the live connector. */
   setChampionIds: (championIds: Record<string, number>) =>
     call("live_set_champion_ids", { championIds }),
+  /**
+   * Keeps the app's window above the others, or lets it go back among them.
+   * A command of the window plugin, allowed by src-tauri/capabilities.
+   */
+  setAlwaysOnTop: (alwaysOnTop: boolean) =>
+    getCurrentWindow().setAlwaysOnTop(alwaysOnTop),
 };

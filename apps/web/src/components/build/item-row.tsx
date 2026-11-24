@@ -16,10 +16,19 @@ interface ItemRowProps {
   detail?: string;
   item: AssetCard | null;
   name: string;
-  reason?: string;
+  /** Why the item is suggested: one chip each. */
+  reasons?: readonly string[];
+  /** An adjustment to the draft warns, a next item to buy informs. */
+  reasonVariant?: "info-light" | "warning-light";
 }
 
-export function ItemRow({ detail, item, name, reason }: ItemRowProps) {
+export function ItemRow({
+  detail,
+  item,
+  name,
+  reasons = [],
+  reasonVariant = "warning-light",
+}: ItemRowProps) {
   return (
     <Item size="sm">
       <ItemMedia>
@@ -30,9 +39,13 @@ export function ItemRow({ detail, item, name, reason }: ItemRowProps) {
         <ItemTitle>{name}</ItemTitle>
         {detail ? <ItemDescription>{detail}</ItemDescription> : null}
       </ItemContent>
-      {reason ? (
+      {reasons.length > 0 ? (
         <ItemActions>
-          <Badge variant="warning-light">{reason}</Badge>
+          {reasons.map((reason) => (
+            <Badge key={reason} variant={reasonVariant}>
+              {reason}
+            </Badge>
+          ))}
         </ItemActions>
       ) : null}
     </Item>

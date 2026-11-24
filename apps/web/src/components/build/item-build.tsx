@@ -37,8 +37,8 @@ export function ItemBuild({ build }: { build: BuildRecommendation }) {
                   <ItemRow
                     item={item}
                     name={item?.name ?? t("build.unknown.item", { id: itemId })}
-                    reason={
-                      adjustment ? adjustmentReason(adjustment, t) : undefined
+                    reasons={
+                      adjustment ? [adjustmentReason(adjustment, t)] : undefined
                     }
                   />
                 </li>

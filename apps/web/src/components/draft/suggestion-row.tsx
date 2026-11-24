@@ -21,6 +21,7 @@ import {
   MAX_VISIBLE_REASONS,
   orderReasons,
   reasonKey,
+  reasonText,
   reasonVariant,
 } from "@/lib/draft/reasons";
 import { scoreBarValue } from "@/lib/draft/score";
@@ -52,13 +53,7 @@ export function SuggestionRow({
   const nameOf = (championId: number) =>
     findChampion(championId)?.name ??
     t("draft.teams.unknownChampion", { id: championId });
-  const textOf = (reason: ParsedReasonCode) =>
-    t(
-      `reasons.${reason.kind}`,
-      "championId" in reason
-        ? { champion: nameOf(reason.championId) }
-        : undefined
-    );
+  const textOf = (reason: ParsedReasonCode) => reasonText(reason, t, nameOf);
 
   const reasons = orderReasons(suggestion.reasons, laneOpponentId);
   const shown = reasons.slice(0, MAX_VISIBLE_REASONS);

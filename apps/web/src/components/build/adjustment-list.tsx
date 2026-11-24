@@ -50,7 +50,7 @@ export function AdjustmentList({ adjustments, findItem }: AdjustmentListProps) {
             }
             item={findItem(adjustment.added)}
             name={nameOf(adjustment.added)}
-            reason={adjustmentReason(adjustment, t)}
+            reasons={[adjustmentReason(adjustment, t)]}
           />
         </li>
       ))}
