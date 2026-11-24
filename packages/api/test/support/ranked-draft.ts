@@ -47,6 +47,8 @@ const frameSchema = z.tuple([
   z.object({ uri: z.string(), data: z.unknown() }),
 ]);
 
+const actionType = (type: string | undefined): DraftState["currentAction"] =>
+  type === "ban" || type === "pick" ? type : "none";
 const noChampion = (id: number): number => Math.max(id, 0);
 const banned = (ids: readonly number[]): number[] => ids.filter((id) => id > 0);
 
@@ -85,7 +87,7 @@ export async function rankedDrafts(): Promise<DraftState[]> {
           myTeamBans: banned(session.bans.myTeamBans),
           theirTeamBans: banned(session.bans.theirTeamBans),
         },
-        currentAction: current?.type === "ban" ? "ban" : "pick",
+        currentAction: actionType(current?.type),
         isLocalPlayersTurn: current?.actorCellId === session.localPlayerCellId,
         pickableChampionIds: [...rankedPickableChampionIds],
         localPick: {

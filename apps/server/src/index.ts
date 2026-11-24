@@ -1,8 +1,8 @@
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { logProcedureErrors } from "@your-league-coach/api/error-log";
 import { appRouter } from "@your-league-coach/api/routers/index";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -30,19 +30,11 @@ export const apiHandler = new OpenAPIHandler(appRouter, {
       schemaConverters: [new ZodToJsonSchemaConverter()],
     }),
   ],
-  interceptors: [
-    onError((error) => {
-      console.error(error);
-    }),
-  ],
+  clientInterceptors: [logProcedureErrors(console.error)],
 });
 
 export const rpcHandler = new RPCHandler(appRouter, {
-  interceptors: [
-    onError((error) => {
-      console.error(error);
-    }),
-  ],
+  clientInterceptors: [logProcedureErrors(console.error)],
 });
 
 app.use("/*", async (c, next) => {

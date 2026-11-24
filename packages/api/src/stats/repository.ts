@@ -62,11 +62,19 @@ export async function loadPatchWindow(
 const windowPatches = ({ patch, previous }: PatchWindow): string[] =>
   previous === null ? [patch] : [patch, previous];
 
-/** Pairs each key's current and previous rows and blends them; a key seen on one patch only blends with zero counts. */
+/** Current-patch games of a champion-role, which decide whether its rows blend in the previous patch. */
+export type CurrentRoleGames = (championId: number, role: string) => number;
+
+/**
+ * Pairs each key's current and previous rows and blends them; a key seen on one
+ * patch only blends with zero counts. `sampleOf` returns the current sample that
+ * gates the blend (default: the row itself).
+ */
 function blendRows<T extends CountRow>(
   rows: readonly T[],
   window: PatchWindow,
-  keyOf: (row: T) => string
+  keyOf: (row: T) => string,
+  sampleOf?: (row: T) => number
 ): Blended<T>[] {
   const pairs = new Map<string, { current?: T; previous?: T }>();
   for (const row of rows) {
@@ -85,8 +93,16 @@ function blendRows<T extends CountRow>(
       return [];
     }
     const { patch: _patch, games: _games, wins: _wins, ...rest } = sample;
+    const currentCounts = current ?? NO_GAMES;
     return [
-      { ...rest, ...blendPatches(current ?? NO_GAMES, previous ?? NO_GAMES) },
+      {
+        ...rest,
+        ...blendPatches(
+          currentCounts,
+          previous ?? NO_GAMES,
+          sampleOf ? sampleOf(sample) : currentCounts.games
+        ),
+      },
     ];
   });
 }
@@ -127,7 +143,8 @@ export async function loadMatchupStats(
   db: Database,
   window: PatchWindow,
   statsGroup: StatsGroup,
-  { role, opponentRole, opponentChampionIds }: MatchupFilter
+  { role, opponentRole, opponentChampionIds }: MatchupFilter,
+  currentRoleGames: CurrentRoleGames
 ) {
   const filters: SQL[] = [
     inArray(matchupStats.patch, windowPatches(window)),
@@ -160,7 +177,8 @@ export async function loadMatchupStats(
     rows,
     window,
     (row) =>
-      `${row.championId}:${row.role}:${row.opponentChampionId}:${row.opponentRole}`
+      `${row.championId}:${row.role}:${row.opponentChampionId}:${row.opponentRole}`,
+    (row) => currentRoleGames(row.championId, row.role)
   );
 }
 
@@ -169,7 +187,8 @@ export async function loadSynergyStats(
   window: PatchWindow,
   statsGroup: StatsGroup,
   role: string,
-  allyChampionIds: readonly number[]
+  allyChampionIds: readonly number[],
+  currentRoleGames: CurrentRoleGames
 ) {
   const rows = await db
     .select({
@@ -194,7 +213,8 @@ export async function loadSynergyStats(
     rows,
     window,
     (row) =>
-      `${row.championId}:${row.role}:${row.allyChampionId}:${row.allyRole}`
+      `${row.championId}:${row.role}:${row.allyChampionId}:${row.allyRole}`,
+    (row) => currentRoleGames(row.championId, row.role)
   );
 }
 
@@ -203,7 +223,8 @@ export async function loadBuildStats(
   window: PatchWindow,
   statsGroup: StatsGroup,
   championId: number,
-  role: string
+  role: string,
+  championRoleCurrentGames: number
 ) {
   const rows = await db
     .select({
@@ -222,7 +243,12 @@ export async function loadBuildStats(
         eq(buildStats.role, role)
       )
     );
-  return blendRows(rows, window, (row) => `${row.kind}:${row.key}`);
+  return blendRows(
+    rows,
+    window,
+    (row) => `${row.kind}:${row.key}`,
+    () => championRoleCurrentGames
+  );
 }
 
 export async function loadItemVsEnemyStats(
@@ -230,7 +256,8 @@ export async function loadItemVsEnemyStats(
   window: PatchWindow,
   statsGroup: StatsGroup,
   championId: number,
-  role: string
+  role: string,
+  championRoleCurrentGames: number
 ) {
   const rows = await db
     .select({
@@ -249,7 +276,12 @@ export async function loadItemVsEnemyStats(
         eq(itemVsEnemyStats.role, role)
       )
     );
-  return blendRows(rows, window, (row) => `${row.itemId}:${row.enemyProfile}`);
+  return blendRows(
+    rows,
+    window,
+    (row) => `${row.itemId}:${row.enemyProfile}`,
+    () => championRoleCurrentGames
+  );
 }
 
 export async function loadMatchCounts(

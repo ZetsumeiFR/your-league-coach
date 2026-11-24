@@ -104,6 +104,43 @@ export const playerPoolEntrySchema = z.object({
 });
 export type PlayerPoolEntry = z.infer<typeof playerPoolEntrySchema>;
 
+const MAX_POOL_ENTRIES = 200;
+const MAX_ALLIES = 4;
+const MAX_ENEMIES = 5;
+const MAX_OWNED_ITEMS = 10;
+const MAX_ENEMY_ITEMS = 50;
+
+const requestChampionIdSchema = z.number().int().positive();
+
+/** Request envelopes of the coach API. Unknown keys (names, puuids) are stripped by zod. */
+export const draftInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  draft: draftStateSchema,
+  pool: z.array(playerPoolEntrySchema).max(MAX_POOL_ENTRIES),
+});
+export type DraftInput = z.infer<typeof draftInputSchema>;
+
+export const buildInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  championId: requestChampionIdSchema,
+  allies: z.array(requestChampionIdSchema).max(MAX_ALLIES),
+  enemies: z.array(requestChampionIdSchema).max(MAX_ENEMIES),
+});
+export type BuildInput = z.infer<typeof buildInputSchema>;
+
+export const nextItemsInputSchema = z.object({
+  queueId: z.number().int(),
+  role: roleSchema.nullable(),
+  championId: requestChampionIdSchema,
+  ownedItems: z.array(itemIdSchema).max(MAX_OWNED_ITEMS),
+  enemyChampions: z.array(requestChampionIdSchema).max(MAX_ENEMIES),
+  /** Every visible enemy item, flattened across enemies. */
+  enemyItems: z.array(itemIdSchema).max(MAX_ENEMY_ITEMS),
+});
+export type NextItemsInput = z.infer<typeof nextItemsInputSchema>;
+
 /** Number of games behind a blended statistic, per patch. */
 export const blendSourcesSchema = z.object({
   currentGames: z.number().int().nonnegative(),

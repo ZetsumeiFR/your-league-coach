@@ -24,15 +24,19 @@ function validateCounts({ wins, games }: PatchCounts, patch: string): void {
  * Adds a declining share of previous counts to the full current sample.
  * Sources report unweighted games from included patches, or zero when omitted.
  * Supply zero counts for a missing patch. Invalid counts throw a RangeError.
+ * `currentSampleGames` is the current-patch sample that decides the blend; rows
+ * that belong to a champion-role (matchups, builds) pass that champion-role's
+ * current games so they blend exactly when the champion-role does.
  */
 export function blendPatches(
   current: PatchCounts,
-  previous: PatchCounts
+  previous: PatchCounts,
+  currentSampleGames: number = current.games
 ): BlendedPatchCounts {
   validateCounts(current, "current");
   validateCounts(previous, "previous");
 
-  if (current.games >= MIN_GAMES_CURRENT_PATCH) {
+  if (currentSampleGames >= MIN_GAMES_CURRENT_PATCH) {
     return {
       wins: current.wins,
       games: current.games,
@@ -41,7 +45,7 @@ export function blendPatches(
   }
 
   const previousWeight =
-    (MIN_GAMES_CURRENT_PATCH - current.games) / MIN_GAMES_CURRENT_PATCH;
+    (MIN_GAMES_CURRENT_PATCH - currentSampleGames) / MIN_GAMES_CURRENT_PATCH;
   return {
     wins: current.wins + previous.wins * previousWeight,
     games: current.games + previous.games * previousWeight,

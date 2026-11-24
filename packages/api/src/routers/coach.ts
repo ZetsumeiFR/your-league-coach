@@ -14,20 +14,21 @@ import {
   type BlendSources,
   type BuildRecommendation,
   banSuggestionsSchema,
+  buildInputSchema,
   buildRecommendationSchema,
   coachMetaSchema,
-  draftStateSchema,
+  draftInputSchema,
   type NextItem,
+  nextItemsInputSchema,
   nextItemsSchema,
   pickSuggestionsSchema,
-  playerPoolEntrySchema,
   type ReasonCode,
 } from "@your-league-coach/lol-data/types";
-import { z } from "zod";
 
 import type { Context } from "../context";
 import { coachProcedure } from "../index";
 import {
+  type CurrentRoleGames,
   loadBuildStats,
   loadChampionRoleStats,
   loadCollectorState,
@@ -43,40 +44,6 @@ import {
 const ARAM_ROLE = "ANY";
 const NEXT_ITEM_COUNT = 2;
 const MAX_LAST_ERROR_LENGTH = 500;
-const MAX_POOL_ENTRIES = 200;
-const MAX_ALLIES = 4;
-const MAX_ENEMIES = 5;
-const MAX_OWNED_ITEMS = 10;
-const MAX_ENEMY_ITEMS = 50;
-
-const championIdSchema = z.number().int().positive();
-const itemIdSchema = z.number().int().positive();
-const roleSchema = z.enum(ROLES);
-
-/** Unknown keys (names, puuids) are stripped by zod before any handler runs. */
-export const draftInputSchema = z.object({
-  queueId: z.number().int(),
-  role: roleSchema.nullable(),
-  draft: draftStateSchema,
-  pool: z.array(playerPoolEntrySchema).max(MAX_POOL_ENTRIES),
-});
-
-export const buildInputSchema = z.object({
-  queueId: z.number().int(),
-  role: roleSchema.nullable(),
-  championId: championIdSchema,
-  allies: z.array(championIdSchema).max(MAX_ALLIES),
-  enemies: z.array(championIdSchema).max(MAX_ENEMIES),
-});
-
-export const nextItemsInputSchema = z.object({
-  queueId: z.number().int(),
-  role: roleSchema.nullable(),
-  championId: championIdSchema,
-  ownedItems: z.array(itemIdSchema).max(MAX_OWNED_ITEMS),
-  enemyChampions: z.array(championIdSchema).max(MAX_ENEMIES),
-  enemyItems: z.array(itemIdSchema).max(MAX_ENEMY_ITEMS),
-});
 
 const coach = coachProcedure.errors({
   ROLE_REQUIRED: {
@@ -192,9 +159,24 @@ async function recommendBuild(
   if (statRole === null || !counts) {
     return null;
   }
+  const { currentGames } = counts.sources;
   const [rows, itemVsEnemyStats, staticData] = await Promise.all([
-    loadBuildStats(db, window, statsGroup, request.championId, statRole),
-    loadItemVsEnemyStats(db, window, statsGroup, request.championId, statRole),
+    loadBuildStats(
+      db,
+      window,
+      statsGroup,
+      request.championId,
+      statRole,
+      currentGames
+    ),
+    loadItemVsEnemyStats(
+      db,
+      window,
+      statsGroup,
+      request.championId,
+      statRole,
+      currentGames
+    ),
     context.staticData(window.ddragonVersion),
   ]);
   const base = baseBuild({
@@ -232,7 +214,12 @@ async function recommendBuild(
   });
 }
 
-/** Rule-added items react to the game state, so they come before the base order. */
+/**
+ * Purchase order of the rule-adjusted build minus owned items: starters while
+ * the inventory holds nothing else (consumed potions leave the inventory, so
+ * they are not re-suggested mid-game), then items added by the composition
+ * rules (they react to the enemy's live state), then boots, core, situational.
+ */
 function pickNextItems(
   build: BuildRecommendation,
   owned: ReadonlySet<number>
@@ -241,22 +228,41 @@ function pickNextItems(
   for (const { added, reasonCode } of build.adjustments) {
     reasons.set(added, [...(reasons.get(added) ?? []), reasonCode]);
   }
-  const planned = [
+  const starter = new Set(build.starter);
+  const inStarterPhase = [...owned].every((id) => starter.has(id));
+  const afterStarter = [
     ...(build.boots === null ? [] : [build.boots]),
     ...build.core,
     ...build.situational,
   ];
-  const inBuild = new Set(planned);
-  const next: NextItem[] = [];
-  for (const itemId of new Set([...reasons.keys(), ...planned])) {
-    if (next.length === NEXT_ITEM_COUNT) {
-      break;
-    }
-    if (inBuild.has(itemId) && !owned.has(itemId)) {
-      next.push({ itemId, reasons: reasons.get(itemId) ?? [] });
-    }
-  }
-  return next;
+  const ruleItems = [...reasons.keys()].filter((id) =>
+    afterStarter.includes(id)
+  );
+  const order = new Set([
+    ...(inStarterPhase ? build.starter : []),
+    ...ruleItems,
+    ...afterStarter,
+  ]);
+  return [...order]
+    .filter((itemId) => !owned.has(itemId))
+    .slice(0, NEXT_ITEM_COUNT)
+    .map((itemId) => ({ itemId, reasons: reasons.get(itemId) ?? [] }));
+}
+
+function currentRoleGamesOf(
+  championRole: readonly {
+    championId: number;
+    role: string;
+    sources: BlendSources;
+  }[]
+): CurrentRoleGames {
+  const games = new Map(
+    championRole.map((row) => [
+      `${row.championId}:${row.role}`,
+      row.sources.currentGames,
+    ])
+  );
+  return (championId, role) => games.get(`${championId}:${role}`) ?? 0;
 }
 
 export const coachRouter = {
@@ -298,10 +304,20 @@ export const coachRouter = {
         input.pool.map(({ championId }) => championId),
         input.role
       );
-      const [championRole, matchups] = await Promise.all([
-        loadChampionRoleStats(context.db, window, statsGroup),
-        filter ? loadMatchupStats(context.db, window, statsGroup, filter) : [],
-      ]);
+      const championRole = await loadChampionRoleStats(
+        context.db,
+        window,
+        statsGroup
+      );
+      const matchups = filter
+        ? await loadMatchupStats(
+            context.db,
+            window,
+            statsGroup,
+            filter,
+            currentRoleGamesOf(championRole)
+          )
+        : [];
       const suggestions = suggestBans({
         draft: input.draft,
         pool: input.pool,
@@ -346,17 +362,30 @@ export const coachRouter = {
       const enemyIds = draft.theirTeam
         .map(({ championId }) => championId)
         .filter((id) => id > 0);
-      const [championRole, matchups, synergies, staticData] = await Promise.all(
-        [
-          loadChampionRoleStats(context.db, window, statsGroup),
-          loadMatchupStats(context.db, window, statsGroup, {
-            role,
-            opponentChampionIds: enemyIds,
-          }),
-          loadSynergyStats(context.db, window, statsGroup, role, allyIds),
-          context.staticData(window.ddragonVersion),
-        ]
+      const championRole = await loadChampionRoleStats(
+        context.db,
+        window,
+        statsGroup
       );
+      const currentRoleGames = currentRoleGamesOf(championRole);
+      const [matchups, synergies, staticData] = await Promise.all([
+        loadMatchupStats(
+          context.db,
+          window,
+          statsGroup,
+          { role, opponentChampionIds: enemyIds },
+          currentRoleGames
+        ),
+        loadSynergyStats(
+          context.db,
+          window,
+          statsGroup,
+          role,
+          allyIds,
+          currentRoleGames
+        ),
+        context.staticData(window.ddragonVersion),
+      ]);
       const roleRows = withRole(championRole);
       const suggestions = suggestPicks({
         draft,

@@ -1,16 +1,20 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { call, ORPCError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
 import type { Database } from "@your-league-coach/db";
 import {
   buildStats,
   championRoleStats,
   collectorState,
+  matchupStats,
 } from "@your-league-coach/db/schema/lol";
-import type {
-  DraftState,
-  PlayerPoolEntry,
+import {
+  type DraftState,
+  draftInputSchema,
+  type PlayerPoolEntry,
 } from "@your-league-coach/lol-data/types";
+import { eq } from "drizzle-orm";
 
 import {
   ARAM_LOCAL_CHAMPION_ID,
@@ -20,7 +24,7 @@ import {
   RANKED_PICKABLE_MIDDLE_IDS,
 } from "../../../scripts/fake-riot-client/fixtures/ids";
 import type { Context } from "../src/context";
-import { draftInputSchema } from "../src/routers/coach";
+import { logProcedureErrors } from "../src/error-log";
 import { appRouter } from "../src/routers/index";
 import { rankedDrafts, revealOnly } from "./support/ranked-draft";
 import {
@@ -50,6 +54,25 @@ const POOL: PlayerPoolEntry[] = [
   },
 ];
 
+const SENTINEL_PUUID = "SENTINEL_PUUID_DO_NOT_LOG";
+const SENTINEL_NAME = "SENTINEL_NAME_DO_NOT_LOG";
+const MID_GAME_ITEMS = [1056, 2003, 3020, 6655];
+const BUILD_INPUT = {
+  queueId: 420,
+  role: "MIDDLE" as const,
+  championId: RANKED_LOCAL_CHAMPION_ID,
+  allies: [],
+  enemies: [],
+};
+const nextItemsInput = (enemyItems: number[], ownedItems: number[]) => ({
+  queueId: 420,
+  role: "MIDDLE" as const,
+  championId: RANKED_LOCAL_CHAMPION_ID,
+  ownedItems,
+  enemyChampions: [RANKED_ENEMY_MIDDLE_CHAMPION_ID, 121, 1, 99],
+  enemyItems,
+});
+
 const contextFor = (db: Database, accessKey: string | null = ACCESS_KEY) =>
   ({
     db,
@@ -68,7 +91,10 @@ const unavailableIds = (draft: DraftState): Set<number> =>
     ...draft.theirTeam.map(({ championId }) => championId),
     ...draft.myTeam
       .filter(({ cellId }) => cellId !== draft.localPlayerCellId)
-      .map(({ championId }) => championId),
+      .flatMap(({ championId, championPickIntent }) => [
+        championId,
+        championPickIntent,
+      ]),
   ]);
 
 describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
@@ -283,19 +309,25 @@ describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
     expect(result?.core).toEqual([6672, 3031, 3046]);
   });
 
-  const nextItems = (enemyItems: number[]) =>
-    call(
-      appRouter.coach.nextItems,
-      {
-        queueId: 420,
-        role: "MIDDLE",
-        championId: RANKED_LOCAL_CHAMPION_ID,
-        ownedItems: [1056, 2003, 3020, 6655],
-        enemyChampions: [RANKED_ENEMY_MIDDLE_CHAMPION_ID, 121, 1, 99],
-        enemyItems,
-      },
-      { context: contextFor(scratch.db) }
+  const nextItems = (enemyItems: number[], ownedItems = MID_GAME_ITEMS) =>
+    call(appRouter.coach.nextItems, nextItemsInput(enemyItems, ownedItems), {
+      context: contextFor(scratch.db),
+    });
+
+  test("nextItems starts with the recommended starters on an empty inventory", async () => {
+    const result = await nextItems([], []);
+    expect(result.items).toEqual(
+      QA_LOCAL_BUILD.starter.map((itemId) => ({ itemId, reasons: [] }))
     );
+  });
+
+  test("nextItems mid-game skips consumed starters and owned items", async () => {
+    const result = await nextItems([], [3020, 6655]);
+    expect(result.items).toEqual([
+      { itemId: 4645, reasons: [] },
+      { itemId: 3089, reasons: [] },
+    ]);
+  });
 
   test("nextItems follows the base order minus owned items below 3 armor/MR items", async () => {
     const result = await nextItems([3075, 3143, 3089]);
@@ -315,6 +347,90 @@ describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
       },
       { itemId: 4645, reasons: [] },
     ]);
+  });
+
+  test("previous-patch rows of a mature champion-role change nothing", async () => {
+    const buildBefore = await call(appRouter.coach.build, BUILD_INPUT, {
+      context: contextFor(scratch.db),
+    });
+    const picksBefore = await suggestPicks(locked);
+    const previous = {
+      patch: QA_PREVIOUS_PATCH,
+      statsGroup: "sr",
+      role: "MIDDLE",
+    };
+    await scratch.db.insert(buildStats).values({
+      ...previous,
+      championId: RANKED_LOCAL_CHAMPION_ID,
+      kind: "spells",
+      key: "4-7",
+      games: 600,
+      wins: 350,
+    });
+    await scratch.db.insert(matchupStats).values({
+      ...previous,
+      championId: 101,
+      opponentChampionId: RANKED_ENEMY_MIDDLE_CHAMPION_ID,
+      opponentRole: "MIDDLE",
+      games: 400,
+      wins: 320,
+    });
+    try {
+      const buildAfter = await call(appRouter.coach.build, BUILD_INPUT, {
+        context: contextFor(scratch.db),
+      });
+      expect(buildBefore?.spells).toEqual([4, 14]);
+      expect(buildAfter).toEqual(buildBefore);
+      expect(buildAfter?.sources).toEqual({
+        currentGames: 900,
+        previousGames: 0,
+      });
+      expect(await suggestPicks(locked)).toEqual(picksBefore);
+    } finally {
+      await scratch.db
+        .delete(buildStats)
+        .where(eq(buildStats.patch, QA_PREVIOUS_PATCH));
+      await scratch.db
+        .delete(matchupStats)
+        .where(eq(matchupStats.patch, QA_PREVIOUS_PATCH));
+    }
+  });
+
+  test("a handler exception is logged without request values or the error message", async () => {
+    const lines: string[] = [];
+    const handler = new RPCHandler(appRouter, {
+      clientInterceptors: [logProcedureErrors((line) => lines.push(line))],
+    });
+    const { response } = await handler.handle(
+      new Request("http://localhost/rpc/coach/suggestPicks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          json: {
+            queueId: 420,
+            role: "MIDDLE",
+            puuid: SENTINEL_PUUID,
+            summonerName: SENTINEL_NAME,
+            draft: locked,
+            pool: POOL,
+          },
+        }),
+      }),
+      {
+        prefix: "/rpc",
+        context: {
+          ...contextFor(scratch.db),
+          staticData: () =>
+            Promise.reject(
+              new Error(`lookup failed for ${SENTINEL_NAME} ${SENTINEL_PUUID}`)
+            ),
+        },
+      }
+    );
+    expect(response?.status).toBe(500);
+    expect(lines).toEqual(["rpc coach.suggestPicks failed: Error"]);
+    expect(lines.join("\n")).not.toContain(SENTINEL_PUUID);
+    expect(lines.join("\n")).not.toContain(SENTINEL_NAME);
   });
 
   test("meta reports patch, match counts and the collector heartbeat", async () => {
@@ -357,10 +473,22 @@ describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
     "a %s access key is UNAUTHORIZED for every coach procedure",
     async (_label, key) => {
       const context = { context: contextFor(scratch.db, key) };
+      const draftInput = {
+        queueId: 420,
+        role: "MIDDLE" as const,
+        draft: locked,
+        pool: POOL,
+      };
       const errors = await Promise.all([
         rejection(call(appRouter.coach.meta, undefined, context)),
-        rejection(suggestPicks(locked, key)),
+        rejection(call(appRouter.coach.suggestBans, draftInput, context)),
+        rejection(call(appRouter.coach.suggestPicks, draftInput, context)),
+        rejection(call(appRouter.coach.build, BUILD_INPUT, context)),
+        rejection(
+          call(appRouter.coach.nextItems, nextItemsInput([], []), context)
+        ),
       ]);
+      expect(errors).toHaveLength(5);
       for (const error of errors) {
         expect(error).toBeInstanceOf(ORPCError);
         expect(error).toMatchObject({ code: "UNAUTHORIZED", status: 401 });
