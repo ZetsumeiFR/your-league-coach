@@ -6,28 +6,25 @@
     "ultracite/biome/tanstack"
   ],
   "files": {
-    "includes": ["!.agents"]
+    "includes": ["!.agents/skills"]
   },
   "overrides": [
     {
-      "includes": [
-        "packages/ui/src/components/input-group.tsx",
-        "packages/ui/src/components/label.tsx",
-        "packages/ui/src/components/message-scroller.tsx",
-        "packages/ui/src/lib/utils.ts"
-      ],
+      "includes": ["packages/ui/src/components/input-group.tsx"],
       "linter": {
         "rules": {
           "a11y": {
-            "noLabelWithoutControl": "off",
             "noNoninteractiveElementInteractions": "off",
             "useKeyWithClickEvents": "off",
             "useSemanticElements": "off"
           },
-          "performance": { "noBarrelFile": "off", "noJsxPropsBind": "off" },
-          "style": { "noExportedImports": "off" }
+          "performance": { "noJsxPropsBind": "off" }
         }
       }
+    },
+    {
+      "includes": ["packages/ui/src/components/message-scroller.tsx"],
+      "linter": { "rules": { "style": { "noExportedImports": "off" } } }
     }
   ]
 }
