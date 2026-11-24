@@ -9,15 +9,25 @@ const SENTINEL_PUUID = "SENTINEL_PUUID_DO_NOT_LOG";
 const SENTINEL_NAME = "SENTINEL_NAME_DO_NOT_LOG";
 const SENTINELS = [ACCESS_KEY, WRONG_KEY, SENTINEL_PUUID, SENTINEL_NAME];
 const QUERY = `?puuid=${SENTINEL_PUUID}&summonerName=${SENTINEL_NAME}`;
+const ENV_KEYS = [
+  "NODE_ENV",
+  "COACH_ACCESS_KEY",
+  "CORS_ORIGIN",
+  "DATABASE_URL",
+] as const;
 
 let app: Hono;
 const captured: string[] = [];
 const restores: (() => void)[] = [];
+const previousEnv = new Map<string, string | undefined>();
 
 // Spies go in before the app is imported, so loggers that bind console or the
 // streams at module load write into the capture too.
 beforeAll(async () => {
   captureOutput();
+  for (const key of ENV_KEYS) {
+    previousEnv.set(key, process.env[key]);
+  }
   Object.assign(process.env, {
     NODE_ENV: "test",
     COACH_ACCESS_KEY: ACCESS_KEY,
@@ -58,6 +68,14 @@ beforeEach(() => {
 afterAll(() => {
   for (const restore of restores.splice(0)) {
     restore();
+  }
+  for (const key of ENV_KEYS) {
+    const value = previousEnv.get(key);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 });
 
