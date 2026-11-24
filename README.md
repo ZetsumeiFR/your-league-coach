@@ -130,6 +130,18 @@ your-league-coach/
 - `bun run docker:logs`: Tail logs from the Docker Compose stack
 - `bun run docker:down`: Stop the Docker Compose stack
 
+## Desktop Installers
+
+CI builds the desktop app on every push. Download the installers from the GitHub Actions run page, under Artifacts: `installer-windows` (`.msi` and `.exe`) and `installer-macos` (`.dmg`).
+
+The installers are unsigned by design (no code signing), so the OS warns on first launch:
+
+- **Windows (SmartScreen):** "Windows protected your PC" appears. Click **More info**, then **Run anyway**.
+- **macOS (Gatekeeper):** the first launch is blocked.
+  1. macOS 15 Sequoia and later: open the app once (it is blocked), then go to **System Settings > Privacy & Security**, scroll to **Security**, click **Open Anyway** next to "Your League Coach", and confirm with your password.
+  2. macOS 14 and earlier: Control-click the app, then **Open**, then **Open**.
+  3. Any version, from a terminal: `xattr -dr com.apple.quarantine "/Applications/Your League Coach.app"`.
+
 ## Better Auth Schema Generation
 
 After changing auth plugins or schema options, run `bun run auth:generate` from the project root. The script runs the Better Auth CLI through `varlock run` from the owning app directory, loading the auth instance from `src/services.ts`. Review the schema changes, then use your ORM's migration workflow to apply them.
