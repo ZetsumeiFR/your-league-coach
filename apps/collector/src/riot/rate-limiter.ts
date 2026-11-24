@@ -3,6 +3,7 @@ import { RiotTransportError } from "./errors";
 import {
   DEFAULT_RETRY_AFTER_MS,
   PERSONAL_LIMITS,
+  REQUEST_HISTORY_CAPACITY,
   SECOND_MS,
   TWO_MINUTES_MS,
 } from "./limits";
@@ -24,9 +25,11 @@ export interface RiotRoute {
 }
 
 interface Bucket {
+  discarded: number;
+  lastDiscardedAt: number | undefined;
   readonly limits: Map<number, number>;
   pausedUntil: number;
-  sent: number[];
+  readonly sent: number[];
 }
 
 interface HostState {
@@ -50,6 +53,8 @@ const MAX_TIMER_MS = 2_147_483_647;
 const createBucket = (limits = new Map<number, number>()): Bucket => ({
   limits,
   sent: [],
+  discarded: 0,
+  lastDiscardedAt: undefined,
   pausedUntil: 0,
 });
 
@@ -97,18 +102,29 @@ function retryAfterMs(header: string | null, now: number): number {
   return DEFAULT_RETRY_AFTER_MS;
 }
 
-function availableAt(bucket: Bucket, now: number): number {
-  const horizon = Math.max(TWO_MINUTES_MS, ...bucket.limits.keys());
-  bucket.sent = bucket.sent.filter((at) => at > now - horizon);
+function availableAt(bucket: Bucket): number {
   let ready = bucket.pausedUntil;
   for (const [ms, max] of bucket.limits) {
     // The max-th newest request must expire before there is room for one more.
-    const oldestBlocking = bucket.sent.at(-max);
+    // For a count beyond retained history, use the newest discarded admission as a safe upper bound.
+    const oldestBlocking =
+      bucket.sent.at(-max) ??
+      (max <= bucket.sent.length + bucket.discarded
+        ? bucket.lastDiscardedAt
+        : undefined);
     if (oldestBlocking !== undefined) {
       ready = Math.max(ready, oldestBlocking + ms);
     }
   }
   return ready;
+}
+
+function recordAdmission(bucket: Bucket, now: number): void {
+  if (bucket.sent.length === REQUEST_HISTORY_CAPACITY) {
+    bucket.lastDiscardedAt = bucket.sent.shift();
+    bucket.discarded += 1;
+  }
+  bucket.sent.push(now);
 }
 
 /** Share one instance across all Riot callers in the same collector process. */
@@ -127,8 +143,8 @@ export class RiotRateLimiter {
     }
     const now = this.#clock.now();
     const ready = Math.max(
-      availableAt(application, now),
-      availableAt(method, now),
+      availableAt(application),
+      availableAt(method),
       service?.pausedUntil ?? 0
     );
     if (ready > now) {
@@ -136,8 +152,8 @@ export class RiotRateLimiter {
       return await this.acquire(route, signal);
     }
     // Check and book both budgets synchronously so waking callers cannot oversubscribe.
-    application.sent.push(now);
-    method.sent.push(now);
+    recordAdmission(application, now);
+    recordAdmission(method, now);
   }
 
   async wait(ms: number, signal?: AbortSignal): Promise<void> {

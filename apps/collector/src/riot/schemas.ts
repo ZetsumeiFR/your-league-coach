@@ -17,6 +17,13 @@ const participantSchema = z.object({
   win: z.boolean(),
   summoner1Id: z.int(),
   summoner2Id: z.int(),
+  item0: z.int().nonnegative(),
+  item1: z.int().nonnegative(),
+  item2: z.int().nonnegative(),
+  item3: z.int().nonnegative(),
+  item4: z.int().nonnegative(),
+  item5: z.int().nonnegative(),
+  item6: z.int().nonnegative(),
   perks: z.object({
     statPerks: z.object({
       defense: z.int(),

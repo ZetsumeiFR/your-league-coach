@@ -5,6 +5,9 @@ export const PERSONAL_LIMITS = { perSecond: 20, perTwoMinutes: 100 } as const;
 export const SECOND_MS = 1000;
 export const TWO_MINUTES_MS = 120 * SECOND_MS;
 
+// Keep recent admissions by count, not by the windows Riot has announced so far.
+export const REQUEST_HISTORY_CAPACITY = 1000;
+
 // Shares of the crawl budget, not limits on individual HTTP requests.
 export const CRAWL_QUEUE_WEIGHTS = [
   [QUEUES.RANKED_SOLO, 60],

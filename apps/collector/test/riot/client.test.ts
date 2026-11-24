@@ -132,6 +132,27 @@ it("blocks only the exhausted method after a method-scope 429", async () => {
   expect(calls.slice(2).map(({ at }) => at)).toEqual([5000, 5000]);
 });
 
+it("holds master but not challenger after a method-scope 429 on master", async () => {
+  const { client, clock, calls } = setup((call, n) =>
+    n === 1 ? rateLimited("method", "5") : ok(call)
+  );
+  const master = client().apexLeague("master");
+  await clock.advanceTo(0);
+  const challenger = client().apexLeague("challenger");
+  const regional = history(client());
+  await clock.advanceTo(4999);
+  expect(calls.map(({ at, url }) => [at, url.pathname])).toEqual([
+    [0, "/lol/league/v4/masterleagues/by-queue/RANKED_SOLO_5x5"],
+    [0, "/lol/league/v4/challengerleagues/by-queue/RANKED_SOLO_5x5"],
+    [0, "/lol/match/v5/matches/by-puuid/puuid-1/ids"],
+  ]);
+  await Promise.all([challenger, regional]);
+  await clock.advanceTo(5000);
+  await master;
+  expect(calls.at(-1)?.at).toBe(5000);
+  expect(calls.at(-1)?.url.pathname).toBe(calls[0]?.url.pathname);
+});
+
 it("blocks match, timeline and history after a match service 429, but not platform league", async () => {
   const { client, clock, calls } = setup((call, n) =>
     n === 1 ? rateLimited("service", "5") : ok(call)

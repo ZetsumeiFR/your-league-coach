@@ -80,10 +80,11 @@ export class RiotClient {
   }
 
   async apexLeague(tier: "challenger" | "grandmaster" | "master") {
+    const endpoint = `/lol/league/v4/${tier}leagues/by-queue`;
     const league = await this.#request(
       this.#platform,
-      "apexLeague",
-      `/lol/league/v4/${tier}leagues/by-queue/${SOLO_LEAGUE_QUEUE}`,
+      endpoint,
+      `${endpoint}/${SOLO_LEAGUE_QUEUE}`,
       apexLeagueSchema
     );
     return { entries: await this.#resolveEntries(league.entries) };
