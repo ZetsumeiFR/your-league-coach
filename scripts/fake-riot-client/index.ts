@@ -19,10 +19,13 @@ import {
 import {
   draftPath,
   flowPath,
+  liveArmorScenario,
+  liveScenario,
   loadScenario,
   phasePath,
   rankedChampionIds,
 } from "./fixtures/lcu/scenarios";
+import allGameData from "./fixtures/live/allgamedata.json";
 
 type Subscription = Readonly<{ topics: Set<string> }>;
 type RecordedRequest = Readonly<{
@@ -53,6 +56,13 @@ let nextPageId = 103;
 let currentItemSets: unknown = itemSets;
 let currentSelection: unknown = selection;
 let replaying = false;
+let liveData = allGameData;
+const livePath = "/liveclientdata/allgamedata";
+
+const armorItems = [3047, 3075, 3110].map((itemID) => ({
+  displayName: "SENTINEL_NAME_DO_NOT_SHOW",
+  itemID,
+}));
 
 const rest = new Map<string, unknown>([
   ["/lol-summoner/v1/current-summoner", summoner],
@@ -87,7 +97,8 @@ const replay = async (url: URL) => {
   }
   replaying = true;
   try {
-    const frames = await loadScenario(url.searchParams.get("scenario"));
+    const scenario = url.searchParams.get("scenario");
+    const frames = await loadScenario(scenario);
     if (!frames) {
       return notFound();
     }
@@ -99,6 +110,17 @@ const replay = async (url: URL) => {
       text,
       frame: wampEvent.parse(JSON.parse(text)),
     }));
+    if (scenario === liveScenario || scenario === liveArmorScenario) {
+      liveData = {
+        ...allGameData,
+        allPlayers: allGameData.allPlayers.map((player) =>
+          scenario === liveArmorScenario && player.team === "CHAOS"
+            ? { ...player, items: armorItems }
+            : player
+        ),
+      };
+      gameflow.delete(draftPath);
+    }
     const firstDraft = events.findIndex(
       ({ frame }) => frame[2].uri === draftPath
     );
@@ -185,6 +207,12 @@ const server = serve<Subscription>({
         return Response.json(requests);
       }
       return notFound();
+    }
+    if (path === livePath && request.method === "GET") {
+      requests.push({ body: null, method: request.method, path });
+      return gameflow.get(phasePath) === "InProgress"
+        ? Response.json(liveData)
+        : notFound();
     }
     if (request.headers.get("authorization") !== authorization) {
       return new Response(null, { status: 401 });

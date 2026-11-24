@@ -1,0 +1,56 @@
+{
+  "activePlayer": {
+    "currentGold": 815.25,
+    "level": 9,
+    "riotId": "SENTINEL_NAME_DO_NOT_SHOW",
+    "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
+    "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
+    "summonerName": "SENTINEL_NAME_DO_NOT_SHOW"
+  },
+  "allPlayers": [
+    {
+      "championName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "items": [{ "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1055 }],
+      "rawChampionName": "game_character_displayname_Garen",
+      "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
+      "team": "ORDER"
+    },
+    {
+      "championName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "items": [{ "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1058 }],
+      "rawChampionName": "game_character_displayname_Zed",
+      "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
+      "team": "CHAOS"
+    },
+    {
+      "championName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "items": [
+        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 1056 },
+        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 2003 },
+        { "displayName": "SENTINEL_NAME_DO_NOT_SHOW", "itemID": 2003 }
+      ],
+      "rawChampionName": "game_character_displayname_Ahri",
+      "riotId": "SENTINEL_NAME_DO_NOT_SHOW",
+      "riotIdGameName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "riotIdTagLine": "SENTINEL_NAME_DO_NOT_SHOW",
+      "summonerName": "SENTINEL_NAME_DO_NOT_SHOW",
+      "team": "ORDER"
+    }
+  ],
+  "events": {
+    "Events": [
+      {
+        "EventID": 0,
+        "EventName": "SENTINEL_NAME_DO_NOT_SHOW",
+        "EventTime": 0
+      }
+    ]
+  },
+  "gameData": {
+    "gameMode": "CLASSIC",
+    "gameTime": 635.5,
+    "mapName": "SENTINEL_NAME_DO_NOT_SHOW"
+  }
+}

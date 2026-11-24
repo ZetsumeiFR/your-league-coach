@@ -1,9 +1,10 @@
 pub mod lcu;
+pub mod live;
 
 use std::path::PathBuf;
 
 use lcu::{
-    Notification, State, Status, Supervisor,
+    Notification, Phase, State, Status, Supervisor,
     commands::{self, LcuState},
 };
 use tauri::{Emitter, Manager};
@@ -20,6 +21,7 @@ pub fn run() {
             commands::lcu_current_summoner,
             commands::lcu_champion_mastery,
             commands::lcu_recent_games,
+            live::live_set_champion_ids,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -44,10 +46,32 @@ pub fn run() {
                 connection,
             });
             let handle = app.handle().clone();
+            let (phase_tx, phase) = watch::channel(Phase::None);
+            let ca_path = std::env::var_os("YLC_RIOT_CA").map(PathBuf::from);
+            let catalog = live::Catalog::default();
+            let live_supervisor = live::Supervisor::new(
+                phase,
+                &catalog,
+                std::env::var("YLC_LIVE_CLIENT_URL").ok().as_deref(),
+                ca_path.as_deref(),
+            );
+            app.manage(catalog);
+            let live_handle = handle.clone();
+            tauri::async_runtime::spawn(live_supervisor.run(move |event| {
+                let result = match event {
+                    live::Notification::Game(game) => live_handle.emit(live::GAME_EVENT, game),
+                    live::Notification::Status(status) => {
+                        live_handle.emit(live::STATUS_EVENT, status)
+                    }
+                };
+                if result.is_err() {
+                    log::warn!("Live Client event delivery failed");
+                }
+            }));
             let supervisor = Supervisor::new(
                 changes,
                 client_tx,
-                std::env::var_os("YLC_RIOT_CA").map(PathBuf::from),
+                ca_path,
                 std::env::var_os("YLC_LCU_LOCKFILE").map(PathBuf::from),
             );
             tauri::async_runtime::spawn(supervisor.run(move |notification| {
@@ -64,7 +88,14 @@ pub fn run() {
                         );
                         handle.emit("lcu://status", status)
                     }
-                    Notification::Gameflow(gameflow) => handle.emit("lcu://gameflow", &gameflow),
+                    Notification::Gameflow(gameflow) => {
+                        phase_tx.send_if_modified(|phase| {
+                            let changed = *phase != gameflow.phase;
+                            *phase = gameflow.phase;
+                            changed
+                        });
+                        handle.emit("lcu://gameflow", &gameflow)
+                    }
                     Notification::ChampSelect(snapshot) => {
                         log::info!("lcu://champ-select queueId={}", snapshot.queue_id);
                         handle.emit("lcu://champ-select", &snapshot)

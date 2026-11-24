@@ -1,14 +1,15 @@
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use app_lib::lcu::{
-    Error, Notification, State, Supervisor,
+    Error, Notification, Phase, State, Supervisor,
     client::{pinned_http, pinned_tls_from},
     snapshot::ChampSelectSnapshot,
 };
+use app_lib::live;
 use tempfile::TempDir;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -121,6 +122,10 @@ impl Drop for Running {
 
 impl Running {
     fn start(lockfile: &Path, ca: &Path) -> Self {
+        Self::start_with_phases(lockfile, ca, watch::channel(Phase::None).0)
+    }
+
+    fn start_with_phases(lockfile: &Path, ca: &Path, phases: watch::Sender<Phase>) -> Self {
         let (settings, paths) = watch::channel(None);
         let (client, _) = watch::channel(None);
         let (tx, events) = mpsc::unbounded_channel();
@@ -135,7 +140,10 @@ impl Running {
                         State::Disconnected => "disconnected",
                     }
                 ),
-                Notification::Gameflow(flow) => println!("lcu://gameflow {:?}", flow.phase),
+                Notification::Gameflow(flow) => {
+                    phases.send_replace(flow.phase);
+                    println!("lcu://gameflow {:?}", flow.phase);
+                }
                 Notification::ChampSelect(snapshot) => println!(
                     "lcu://champ-select queueId={} championId={} completed={}",
                     snapshot.queue_id,
@@ -198,6 +206,122 @@ async fn replay(url: String, ca: &Path) {
         .await
         .expect("replay response");
     assert!(reply["events"].as_u64().is_some());
+}
+
+#[tokio::test]
+async fn real_live_supervisor_polls_fake_and_handles_connection_refusal() {
+    timeout(Duration::from_secs(25), async {
+        let temp = TempDir::new().expect("QA temp directory");
+        let certs = temp.path().join("certs");
+        let ca = certs.join("ca.pem");
+        let lockfile = temp.path().join("lockfile");
+        generate_certs(&certs).await;
+        let fake = Fake::start(&lockfile, &certs).await;
+        let base = format!("https://127.0.0.1:{}", fake.port);
+        println!("integration harness: YLC_LIVE_CLIENT_URL={base}");
+
+        let catalog = live::Catalog::default();
+        catalog
+            .replace(
+                [
+                    ("Ahri".into(), 103),
+                    ("Garen".into(), 86),
+                    ("Zed".into(), 238),
+                ]
+                .into(),
+            )
+            .expect("install synthetic Data Dragon catalog");
+        let (phase, phases) = watch::channel(Phase::None);
+        let mut lcu = Running::start_with_phases(&lockfile, &ca, phase);
+        let (emit, mut events) = mpsc::unbounded_channel();
+        let start = Instant::now();
+        let supervisor = live::Supervisor::new(phases, &catalog, Some(&base), Some(&ca));
+        let running = tokio::spawn(supervisor.run(move |event| {
+            match &event {
+                live::Notification::Game(game) => println!(
+                    "{:.3}s {} {}",
+                    start.elapsed().as_secs_f64(),
+                    live::GAME_EVENT,
+                    serde_json::to_string(game).unwrap()
+                ),
+                live::Notification::Status(status) => println!(
+                    "{:.3}s {} {}",
+                    start.elapsed().as_secs_f64(),
+                    live::STATUS_EVENT,
+                    serde_json::to_string(status).unwrap()
+                ),
+            }
+            let _ = emit.send((Instant::now(), event));
+        }));
+        lcu.status(State::Searching).await;
+        lcu.status(State::Connected).await;
+        assert_live_status(
+            events.recv().await.unwrap().1,
+            live::LiveState::WaitingForGame,
+        );
+        replay(fake.replay_url("live-game"), &ca).await;
+        assert_live_status(events.recv().await.unwrap().1, live::LiveState::Active);
+        let (first_at, first) = events.recv().await.unwrap();
+        assert_eq!(
+            live_items(first, "myItems"),
+            serde_json::json!([1056, 2003, 2003])
+        );
+        replay(fake.replay_url("live-game-armored"), &ca).await;
+        let (second_at, second) = events.recv().await.unwrap();
+        assert_eq!(
+            live_items(second, "enemies")[0]["items"],
+            serde_json::json!([3047, 3075, 3110])
+        );
+        // Exact cadence is covered under paused time; tolerate scheduling jitter here.
+        assert!(second_at - first_at >= Duration::from_secs(4));
+        replay(fake.replay_url("live-game-ended"), &ca).await;
+        assert_live_status(
+            events.recv().await.unwrap().1,
+            live::LiveState::WaitingForGame,
+        );
+        fake.stop().await;
+        drop(lcu);
+        timeout(DEADLINE, running).await.unwrap().unwrap();
+
+        // Keep InProgress but point the real Live supervisor at the just-closed
+        // listener. Starting in this phase emits no status before the actual poll.
+        let (phase, phases) = watch::channel(Phase::InProgress);
+        let (emit, mut events) = mpsc::unbounded_channel();
+        let refused = live::Supervisor::new(phases, &catalog, Some(&base), Some(&ca));
+        let running = tokio::spawn(refused.run(move |event| {
+            emit.send(event).expect("test event receiver");
+        }));
+        let status = events.recv().await.unwrap();
+        assert_live_status(status, live::LiveState::WaitingForGame);
+        println!(
+            "connection refused at {base}: {} {} (no panic)",
+            live::STATUS_EVENT,
+            serde_json::to_string(&live::Status {
+                state: live::LiveState::WaitingForGame
+            })
+            .unwrap()
+        );
+        drop(phase);
+        timeout(DEADLINE, running).await.unwrap().unwrap();
+        temp.close()
+            .expect("remove fake certificates and temporary directory");
+    })
+    .await
+    .expect("Live Client integration deadline");
+}
+
+fn assert_live_status(event: live::Notification, expected: live::LiveState) {
+    assert!(
+        matches!(event, live::Notification::Status(status) if status.state == expected),
+        "{event:?}"
+    );
+}
+
+fn live_items(event: live::Notification, key: &str) -> serde_json::Value {
+    let live::Notification::Game(game) = event else {
+        panic!("expected a live game, got {event:?}");
+    };
+    serde_json::to_value(game).unwrap()[key].clone()
 }
 
 #[tokio::test]
