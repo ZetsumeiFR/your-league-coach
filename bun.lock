@@ -50,7 +50,6 @@
         "@varlock/vite-integration": "1.5.6",
         "@your-league-coach/api": "workspace:*",
         "@your-league-coach/ui": "workspace:*",
-        "lucide-react": "catalog:",
         "next-themes": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",

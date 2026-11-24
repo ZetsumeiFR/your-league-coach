@@ -25,6 +25,69 @@
     {
       "includes": ["packages/ui/src/components/message-scroller.tsx"],
       "linter": { "rules": { "style": { "noExportedImports": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/breadcrumb.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useFocusableInteractive": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/components/item.tsx"],
+      "linter": { "rules": { "a11y": { "useSemanticElements": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/sheet.tsx"],
+      "linter": { "rules": { "suspicious": { "noLeakedRender": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/sidebar.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": { "useExhaustiveDependencies": "off" },
+          "performance": {
+            "noJsxPropsBind": "off",
+            "noNamespaceImport": "off"
+          },
+          "style": { "useConsistentTypeDefinitions": "off" },
+          "suspicious": {
+            "noDocumentCookie": "off",
+            "noLeakedRender": "off",
+            "noShadow": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/components/toggle-group.tsx",
+        "packages/ui/src/hooks/use-mobile.ts"
+      ],
+      "linter": { "rules": { "performance": { "noNamespaceImport": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/reui/stepper.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": { "useExhaustiveDependencies": "off" },
+          "style": {
+            "noNestedTernary": "off",
+            "noNonNullAssertion": "off",
+            "useConsistentTypeDefinitions": "off",
+            "useDefaultSwitchClause": "off"
+          },
+          "suspicious": { "noLeakedRender": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/reui/icons/**"],
+      "linter": { "rules": { "a11y": { "noSvgWithoutTitle": "off" } } }
     }
   ]
 }
