@@ -6,9 +6,9 @@ import { cn } from "cn";
 
 const badgeVariants = cva(
   [
-    "relative inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap border border-transparent font-medium outline-none transition-shadow",
+    "relative inline-flex shrink-0 items-center justify-center w-fit border border-transparent font-medium whitespace-nowrap outline-none transition-shadow",
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
-    "[&_svg:not([class*=size-])]:size-3 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-3",
   ],
   {
     variants: {
@@ -37,26 +37,26 @@ const badgeVariants = cva(
         "focus-light":
           "border-focus/15 bg-focus/10 text-focus-foreground dark:border-focus/25 dark:bg-focus/15 dark:text-focus",
         "primary-outline":
-          "border-border bg-background text-primary dark:bg-input/30",
+          "bg-background border-border text-primary dark:bg-input/30",
         "warning-outline":
-          "border-border bg-background text-warning-foreground dark:bg-input/30",
+          "bg-background border-border text-warning-foreground dark:bg-input/30",
         "success-outline":
-          "border-border bg-background text-success-foreground dark:bg-input/30",
+          "bg-background border-border text-success-foreground dark:bg-input/30",
         "info-outline":
-          "border-border bg-background text-info-foreground dark:bg-input/30",
+          "bg-background border-border text-info-foreground dark:bg-input/30",
         "destructive-outline":
-          "border-border bg-background text-destructive-foreground dark:bg-input/30",
+          "bg-background border-border text-destructive-foreground dark:bg-input/30",
         "invert-outline":
-          "border-border bg-background text-invert-foreground dark:bg-input/30",
+          "bg-background border-border text-invert-foreground dark:bg-input/30",
         "focus-outline":
-          "border-border bg-background text-focus-foreground dark:bg-input/30",
+          "bg-background border-border text-focus-foreground dark:bg-input/30",
       },
       size: {
-        xs: "h-4 min-w-4 gap-1 px-1 py-0.25 text-[0.6rem] leading-none",
-        sm: "h-4.5 min-w-4.5 gap-1 px-1 py-0.25 text-[0.625rem] leading-none",
-        default: "h-5 min-w-5 gap-1 px-1.25 py-0.5 text-xs",
-        lg: "h-5.5 min-w-5.5 gap-1 px-1.5 py-0.5 text-xs",
-        xl: "h-6 min-w-6 gap-1.5 px-2 py-0.75 text-sm",
+        xs: "px-1 py-0.25 text-[0.6rem] leading-none h-4 min-w-4 gap-1",
+        sm: "px-1 py-0.25 text-[0.625rem] leading-none h-4.5 min-w-4.5 gap-1",
+        default: "px-1.25 py-0.5 text-xs h-5 min-w-5 gap-1",
+        lg: "px-1.5 py-0.5 text-xs h-5.5 min-w-5.5 gap-1",
+        xl: "px-2 py-0.75 text-sm h-6 min-w-6 gap-1.5",
       },
       /** `default`: active style radius. `full`: pill radius. */
       radius: {

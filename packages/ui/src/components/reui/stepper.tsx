@@ -159,11 +159,11 @@ function Stepper({
   return (
     <StepperContext.Provider value={contextValue}>
       <div
+        role="tablist"
         aria-orientation={orientation}
+        data-slot="stepper"
         className={cn("w-full", className)}
         data-orientation={orientation}
-        data-slot="stepper"
-        role="tablist"
         {...props}
       >
         {children}
@@ -204,11 +204,11 @@ function StepperItem({
       value={{ step, state, isDisabled: disabled, isLoading }}
     >
       <div
+        data-slot="stepper-item"
         className={cn(
-          "group/step flex not-last:flex-1 items-center justify-center group-data-[orientation=horizontal]/stepper-nav:flex-row group-data-[orientation=vertical]/stepper-nav:flex-col",
+          "group/step flex items-center justify-center not-last:flex-1 group-data-[orientation=horizontal]/stepper-nav:flex-row group-data-[orientation=vertical]/stepper-nav:flex-col",
           className
         )}
-        data-slot="stepper-item"
         data-state={state}
         {...(isLoading ? { "data-loading": true } : {})}
         {...props}
@@ -306,7 +306,7 @@ function StepperTrigger({
     "data-state": state,
     "data-loading": isLoading,
     className: cn(
-      "inline-flex cursor-pointer items-center outline-none focus-visible:z-10 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60",
+      "focus-visible:border-ring focus-visible:ring-ring/50 inline-flex cursor-pointer items-center outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-60",
       "gap-2.5 rounded-full",
       className
     ),
@@ -333,13 +333,13 @@ function StepperIndicator({
 
   return (
     <div
+      data-slot="stepper-indicator"
+      data-state={state}
       className={cn(
-        "relative flex size-6 shrink-0 items-center justify-center overflow-hidden border-background bg-accent text-accent-foreground data-[state=active]:bg-primary data-[state=completed]:bg-primary data-[state=active]:text-primary-foreground data-[state=completed]:text-primary-foreground",
+        "border-background bg-accent text-accent-foreground data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
         "rounded-full text-xs",
         className
       )}
-      data-slot="stepper-indicator"
-      data-state={state}
     >
       <div className="absolute">
         {indicators &&
@@ -362,12 +362,12 @@ function StepperSeparator({ className }: React.ComponentProps<"div">) {
 
   return (
     <div
-      className={cn(
-        "m-0.5 rounded-none bg-muted group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
-        className
-      )}
       data-slot="stepper-separator"
       data-state={state}
+      className={cn(
+        "bg-muted rounded-none m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5",
+        className
+      )}
     />
   );
 }
@@ -377,9 +377,9 @@ function StepperTitle({ children, className }: React.ComponentProps<"h3">) {
 
   return (
     <h3
-      className={cn("font-medium text-sm leading-none", className)}
       data-slot="stepper-title"
       data-state={state}
+      className={cn("text-sm leading-none font-medium", className)}
     >
       {children}
     </h3>
@@ -394,9 +394,9 @@ function StepperDescription({
 
   return (
     <div
-      className={cn("text-muted-foreground text-sm", className)}
       data-slot="stepper-description"
       data-state={state}
+      className={cn("text-muted-foreground text-sm", className)}
     >
       {children}
     </div>
@@ -408,13 +408,13 @@ function StepperNav({ children, className }: React.ComponentProps<"nav">) {
 
   return (
     <nav
+      data-slot="stepper-nav"
+      data-state={activeStep}
+      data-orientation={orientation}
       className={cn(
         "group/stepper-nav inline-flex data-[orientation=horizontal]:w-full data-[orientation=horizontal]:flex-row data-[orientation=vertical]:flex-col",
         className
       )}
-      data-orientation={orientation}
-      data-slot="stepper-nav"
-      data-state={activeStep}
     >
       {children}
     </nav>
@@ -426,9 +426,9 @@ function StepperPanel({ children, className }: React.ComponentProps<"div">) {
 
   return (
     <div
-      className={cn("w-full", className)}
       data-slot="stepper-panel"
       data-state={activeStep}
+      className={cn("w-full", className)}
     >
       {children}
     </div>
@@ -455,9 +455,9 @@ function StepperContent({
 
   return (
     <div
-      className={cn("w-full", className, !isActive && forceMount && "hidden")}
       data-slot="stepper-content"
       data-state={activeStep}
+      className={cn("w-full", className, !isActive && forceMount && "hidden")}
       hidden={!isActive && forceMount}
     >
       {children}

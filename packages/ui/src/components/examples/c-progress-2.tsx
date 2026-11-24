@@ -7,7 +7,7 @@ import {
 export function Pattern() {
   return (
     <div className="mx-auto w-full max-w-xs">
-      <Progress className="**:data-[slot=progress-track]:h-1" value={30}>
+      <Progress value={30} className="**:data-[slot=progress-track]:h-1">
         <ProgressLabel>Small progress</ProgressLabel>
         <ProgressValue />
       </Progress>
