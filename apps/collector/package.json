@@ -4,14 +4,15 @@
   "type": "module",
   "scripts": {
     "check-types": "tsc --noEmit",
-    "dev": "bun run --watch src/riot/smoke.ts",
+    "dev": "bun run --watch src/index.ts",
     "env:generate": "varlock codegen",
-    "start": "bun run src/riot/smoke.ts",
+    "start": "bun run src/index.ts",
     "test": "bun test"
   },
   "dependencies": {
     "@your-league-coach/db": "workspace:*",
     "@your-league-coach/lol-data": "workspace:*",
+    "drizzle-orm": "catalog:",
     "varlock": "catalog:",
     "zod": "catalog:"
   },

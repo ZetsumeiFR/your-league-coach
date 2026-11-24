@@ -288,3 +288,12 @@ it("cancels an in-flight fetch on the caller deadline without exposing its abort
   expect(await failed).toBeInstanceOf(RiotTransportError);
   await expect(pending).rejects.not.toThrow(testKey);
 });
+
+it("resolves a large apex roster without recursive stack growth", async () => {
+  const entries = Array.from({ length: 25_000 }, (_, i) => ({
+    puuid: `seed-${i}`,
+  }));
+  const { client, calls } = setup(() => Response.json({ entries }));
+  expect((await client().apexLeague("master")).entries).toEqual(entries);
+  expect(calls).toHaveLength(1);
+});

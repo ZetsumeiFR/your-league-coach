@@ -22,6 +22,7 @@
       "dependencies": {
         "@your-league-coach/db": "workspace:*",
         "@your-league-coach/lol-data": "workspace:*",
+        "drizzle-orm": "catalog:",
         "varlock": "catalog:",
         "zod": "catalog:",
       },
