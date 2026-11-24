@@ -179,13 +179,16 @@ mod tests {
         let fixture = include_str!(
             "../../../../../scripts/fake-riot-client/fixtures/lcu/champ-select-ranked.jsonl"
         );
+        // The fixture walks one draft and ends on the local hover, then the lock.
         let frame = fixture
             .lines()
-            .find_map(|line| {
+            .filter_map(|line| {
                 let frame: Value = serde_json::from_str(line).expect("valid WAMP fixture");
                 frame[2]["data"]["myTeam"].is_array().then_some(frame)
             })
-            .expect("draft event");
+            .rev()
+            .nth(1)
+            .expect("hover event");
         let mut raw = frame[2]["data"].clone();
         raw["myTeam"][0]["assignedPosition"] = Value::String("SENTINEL_NAME_DO_NOT_SHOW".into());
         raw["myTeam"][0]["championId"] = Value::from(-1);

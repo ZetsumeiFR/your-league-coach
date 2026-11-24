@@ -19,6 +19,7 @@ import { eq } from "drizzle-orm";
 import {
   ARAM_LOCAL_CHAMPION_ID,
   QA_COUNTER_CHAMPION_ID,
+  RANKED_ENEMY_CHAMPION_IDS,
   RANKED_ENEMY_MIDDLE_CHAMPION_ID,
   RANKED_LOCAL_CHAMPION_ID,
   RANKED_PICKABLE_MIDDLE_IDS,
@@ -183,6 +184,25 @@ describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
     }
   );
 
+  test("suggestPicks reports the previous patch and the role assumed for each revealed enemy", async () => {
+    const allRevealed = await suggestPicks(hover);
+    expect(allRevealed.previousPatch).toBe(QA_PREVIOUS_PATCH);
+    const [top, jungle, middle, bottom, utility] = RANKED_ENEMY_CHAMPION_IDS;
+    expect(allRevealed.enemyRoles).toEqual([
+      { championId: top, role: "TOP" },
+      { championId: jungle, role: "JUNGLE" },
+      { championId: middle, role: "MIDDLE" },
+      { championId: bottom, role: "BOTTOM" },
+      { championId: utility, role: "UTILITY" },
+    ]);
+    const laneOnly = await suggestPicks(
+      revealOnly(locked, [RANKED_ENEMY_MIDDLE_CHAMPION_ID])
+    );
+    expect(laneOnly.enemyRoles).toEqual([
+      { championId: RANKED_ENEMY_MIDDLE_CHAMPION_ID, role: "MIDDLE" },
+    ]);
+  });
+
   test("suggestPicks never returns a banned, picked or hovered-by-ally champion", async () => {
     const draft: DraftState = {
       ...locked,
@@ -222,6 +242,7 @@ describe.skipIf(!BASE_DATABASE_URL)("coach router on the QA seed", () => {
       { queueId: 420, role: "MIDDLE", draft: locked, pool: POOL },
       { context: contextFor(scratch.db) }
     );
+    expect(result.previousPatch).toBe(QA_PREVIOUS_PATCH);
     expect(result.suggestions).toHaveLength(5);
     const unavailable = unavailableIds(locked);
     for (const { championId } of result.suggestions) {
@@ -609,6 +630,7 @@ describe.skipIf(!BASE_DATABASE_URL)("fresh-install patch blend", () => {
       CHAMPION_ID,
     ]);
     expect(picks.sources).toEqual({ currentGames: 40, previousGames: 600 });
+    expect(picks.previousPatch).toBe(QA_PREVIOUS_PATCH);
 
     const build = await call(
       appRouter.coach.build,

@@ -3,7 +3,10 @@ import { isDefensive } from "@your-league-coach/coach/build/rule-items";
 import { applyBuildRules } from "@your-league-coach/coach/build/rules";
 import { computeEnemyProfile } from "@your-league-coach/coach/build/traits";
 import { suggestBans } from "@your-league-coach/coach/draft/bans";
-import { suggestPicks } from "@your-league-coach/coach/draft/picks";
+import {
+  inferRevealedEnemyRoles,
+  suggestPicks,
+} from "@your-league-coach/coach/draft/picks";
 import type { RoleDistribution } from "@your-league-coach/coach/stats/roles";
 import {
   queueToStatsGroup,
@@ -331,6 +334,7 @@ export const coachRouter = {
       });
       return {
         patch: window.patch,
+        previousPatch: window.previous,
         sources: sumSources(
           championRole,
           new Set(suggestions.map(({ championId }) => championId))
@@ -387,7 +391,7 @@ export const coachRouter = {
         context.staticData(window.ddragonVersion),
       ]);
       const roleRows = withRole(championRole);
-      const suggestions = suggestPicks({
+      const picksInput = {
         draft,
         pool: input.pool,
         role,
@@ -402,13 +406,16 @@ export const coachRouter = {
           ),
           roleDistribution: roleDistribution(roleRows),
         },
-      });
+      };
+      const suggestions = suggestPicks(picksInput);
       return {
         patch: window.patch,
+        previousPatch: window.previous,
         sources: sumSources(
           roleRows.filter((row) => row.role === role),
           new Set(suggestions.map(({ championId }) => championId))
         ),
+        enemyRoles: inferRevealedEnemyRoles(picksInput),
         suggestions,
       };
     }),

@@ -1,10 +1,11 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import {
+  championIconUrl,
   fetchChampions,
   fetchVersions,
   type Locale,
 } from "@your-league-coach/lol-data/ddragon";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ddragonLocale } from "@/i18n/translate";
 import { useLanguage } from "@/i18n/use-t";
 
@@ -50,26 +51,52 @@ export const useDdragonVersion = (): string | null => {
   return serverVersion ?? latest.data ?? null;
 };
 
+const useChampions = () => {
+  const version = useDdragonVersion();
+  const locale = ddragonLocale(useLanguage());
+  const { data } = useQuery({
+    ...championsQuery(version ?? "", locale),
+    enabled: version !== null,
+  });
+  return { champions: data, version };
+};
+
+/** What a screen shows of a champion: its name in the app's language and its icon. */
+export interface ChampionCard {
+  iconUrl: string;
+  name: string;
+}
+export type FindChampion = (championId: number) => ChampionCard | null;
+
+/** Null for an id Data Dragon does not know, and for every id until it has answered. */
+export const useChampionLookup = (): FindChampion => {
+  const { champions, version } = useChampions();
+  return useMemo(() => {
+    const cards = new Map(
+      (champions ?? []).map(({ id, key, name }) => [
+        key,
+        { name, iconUrl: championIconUrl(version ?? "", id) },
+      ])
+    );
+    return (championId) => cards.get(championId) ?? null;
+  }, [champions, version]);
+};
+
 /**
  * Hands the live connector the champion id -> numeric key catalog it needs to
  * read a game, once per Data Dragon version.
  */
 export const useChampionCatalogSync = () => {
-  const version = useDdragonVersion();
-  const locale = ddragonLocale(useLanguage());
-  const champions = useQuery({
-    ...championsQuery(version ?? "", locale),
-    enabled: version !== null,
-  });
+  const { champions, version } = useChampions();
   const sentVersion = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!(version && champions.data) || sentVersion.current === version) {
+    if (!(version && champions) || sentVersion.current === version) {
       return;
     }
     sentVersion.current = version;
     const championIds = Object.fromEntries(
-      champions.data.map(({ id, key }) => [id, key])
+      champions.map(({ id, key }) => [id, key])
     );
     desktop.setChampionIds(championIds).catch(() => {
       // Refused or not delivered: forget the version so the next change of
@@ -77,5 +104,5 @@ export const useChampionCatalogSync = () => {
       // "waiting_for_catalog", which the in-game screen shows.
       sentVersion.current = null;
     });
-  }, [version, champions.data]);
+  }, [version, champions]);
 };

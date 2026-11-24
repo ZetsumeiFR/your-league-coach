@@ -18,8 +18,10 @@ import {
 } from "./events";
 
 export interface DesktopState {
-  /** Latest champion select snapshot; cleared when the client goes away. */
+  /** Draft of the current game, from its champion select until the game ends or the client goes away. */
   champSelect: DesktopEvents["lcu://champ-select"] | null;
+  /** Which champion select of this window `champSelect` is from: the number changes when a new one starts, never during one. */
+  champSelectSession: number;
   lcu: LcuState;
   live: LiveState;
   liveGame: LiveGame | null;
@@ -31,12 +33,21 @@ export interface DesktopState {
 
 const INITIAL_STATE: DesktopState = {
   champSelect: null,
+  champSelectSession: 0,
   lcu: "searching",
   live: "waiting_for_game",
   liveGame: null,
   locale: null,
   phase: null,
 };
+
+/** Phases of one game, from its champion select to its end: the snapshot is that game's draft during them. */
+const DRAFT_PHASES: ReadonlySet<GameflowPhase> = new Set([
+  "ChampSelect",
+  "GameStart",
+  "InProgress",
+  "Reconnect",
+]);
 
 type DesktopAction =
   | { name: "lcu://status"; payload: DesktopEvents["lcu://status"] }
@@ -59,14 +70,26 @@ const reduce = (state: DesktopState, action: DesktopAction): DesktopState => {
         ? { ...state, lcu }
         : { ...state, lcu, champSelect: null };
     }
-    case "lcu://gameflow":
-      return { ...state, phase: action.payload.phase };
-    case "lcu://champ-select":
+    case "lcu://gameflow": {
+      const { phase } = action.payload;
+      // A snapshot belongs to one game: the next champion select must not start on it.
+      return {
+        ...state,
+        phase,
+        champSelect: DRAFT_PHASES.has(phase) ? state.champSelect : null,
+      };
+    }
+    case "lcu://champ-select": {
+      // The snapshot is dropped at every boundary between two champion selects: one that follows none starts a new one.
+      const startsChampSelect = state.champSelect === null;
       return {
         ...state,
         champSelect: action.payload,
+        champSelectSession:
+          state.champSelectSession + (startsChampSelect ? 1 : 0),
         phase: state.phase ?? "ChampSelect",
       };
+    }
     case "live://status": {
       const live = action.payload.state;
       const inGame = live !== "waiting_for_game";
@@ -85,6 +108,8 @@ const reduce = (state: DesktopState, action: DesktopAction): DesktopState => {
       return state;
   }
 };
+
+export { INITIAL_STATE as initialDesktopState, reduce as reduceDesktopState };
 
 const DesktopContext = createContext<DesktopState | null>(null);
 

@@ -180,6 +180,86 @@ export const fr: Dictionary = {
       description:
         "Les suggestions de bans et de picks s'affichent ici pendant la sélection des champions.",
     },
+    unsupported: {
+      title: "Mode non pris en charge",
+      description:
+        "Les suggestions couvrent les parties classées, le draft normal et l'ARAM.",
+    },
+    aram: {
+      title: "ARAM - build uniquement",
+      description:
+        "L'ARAM n'a ni bans ni ordre de pick\u00a0: il n'y a rien à suggérer ici.",
+    },
+    teams: {
+      allies: "Ton équipe",
+      enemies: "Équipe adverse",
+      you: "Toi",
+      ally: "Allié {number}",
+      enemy: "Adversaire {number}",
+      notPicked: "Pas choisi",
+      notRevealed: "Non révélé",
+      hovering: "Survol",
+      likelyRole: "~{role}",
+      likelyRoleHint: "Rôle probable\u00a0: {role}",
+      bans: "Bans",
+      noBans: "Aucun ban",
+      unknownChampion: "Champion {id}",
+    },
+    roles: {
+      TOP: "Top",
+      JUNGLE: "Jungle",
+      MIDDLE: "Mid",
+      BOTTOM: "Bot",
+      UTILITY: "Support",
+    },
+    rolePicker: "Ton rôle",
+    suggestions: {
+      picks: "Suggestions de picks",
+      bans: "Suggestions de bans",
+      info: {
+        label: "Comment le score est calculé",
+        picks:
+          "Force sur le patch, matchups, synergies et ton pool, en points de taux de victoire. Barre pleine à +{full}.",
+        bans: "Force sur le patch et menace pour tes meilleurs champions, en points de taux de victoire. Barre pleine à +{full}.",
+      },
+      score: "Score",
+      points: "{points} pts",
+      winRate: "Taux de victoire",
+      games: { one: "{count} partie", other: "{count} parties" },
+      components: {
+        strength: "Force sur le patch",
+        matchup: "Matchups",
+        synergy: "Synergie",
+        pool: "Ton pool",
+      },
+      moreReasons: "+{count}",
+      blended: "Patch {patch} + {previous}, {games} parties",
+      blendedUnnamed: "Patch {patch} + patch précédent, {games} parties",
+      needRole: {
+        title: "Quel rôle joues-tu\u00a0?",
+        description:
+          "Les suggestions de picks dépendent de ton rôle. Choisis-le ci-dessus.",
+      },
+      empty: {
+        title: "Aucune suggestion pour ce draft",
+        description:
+          "Trop peu de parties analysées pour ce rôle sur le patch actuel.",
+      },
+      error: {
+        title: "Suggestions indisponibles",
+        unreachable: "Aucune réponse du serveur de coaching.",
+        failed: "Le serveur de coaching a répondu par une erreur.",
+        unauthorized: "Le serveur de coaching a refusé la clé d'accès.",
+        retry: "Réessayer",
+        openSettings: "Ouvrir les réglages",
+      },
+      unconfigured: {
+        title: "Serveur de coaching à configurer",
+        description:
+          "Saisis l'adresse du serveur et la clé d'accès pour obtenir des suggestions.",
+        action: "Ouvrir les réglages",
+      },
+    },
   },
   build: {
     idle: {

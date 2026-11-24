@@ -167,8 +167,9 @@
 }
 
 /*
- * Reduced motion: transitions and entrance animations end at once. Left out
- * of any layer on purpose, so it outranks the duration utilities; 1ms, not 0,
+ * Reduced motion: transitions and entrance animations end at once, and an
+ * animation that would repeat plays once, so nothing keeps pulsing. Left out
+ * of any layer on purpose, so it outranks the animation utilities; 1ms, not 0,
  * so components that wait for the end of an animation still get the event.
  */
 @media (prefers-reduced-motion: reduce) {
@@ -176,11 +177,13 @@
   ::before,
   ::after {
     animation-duration: 1ms;
+    animation-iteration-count: 1;
     transition-duration: 1ms;
     scroll-behavior: auto;
   }
   /* A busy indicator has to keep turning to mean anything. */
   .animate-spin {
     animation-duration: 1s;
+    animation-iteration-count: infinite;
   }
 }
