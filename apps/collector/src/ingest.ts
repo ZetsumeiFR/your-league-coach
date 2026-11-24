@@ -13,6 +13,7 @@ import { ROLES } from "@your-league-coach/lol-data/roles";
 import { eq } from "drizzle-orm";
 import { RiotPayloadError } from "./riot/errors";
 import type { RiotMatch, RiotTimeline } from "./riot/schemas";
+import { RAW_PATCH_COUNT, readStatWindow } from "./stat-window";
 
 // Ignore remakes and isolate purchases from the opening shopping window.
 export const MIN_MATCH_DURATION_S = 300;
@@ -243,6 +244,16 @@ export const ingestMatch = async (
   }
   return await db.transaction(async (tx) => {
     if (seedId !== undefined) {
+      // A patch can roll over while we retrieve a match's timeline. Recheck
+      // under the patch/retention lock before committing its raw rows.
+      await tx
+        .select({ id: collectorState.id })
+        .from(collectorState)
+        .for("share");
+      const window = (await readStatWindow(tx)).slice(0, RAW_PATCH_COUNT);
+      if (!window.some(({ patch }) => patch === parsed.match.patch)) {
+        return false;
+      }
       const [seed] = await tx
         .select({ tier: seedPlayers.tier })
         .from(seedPlayers)

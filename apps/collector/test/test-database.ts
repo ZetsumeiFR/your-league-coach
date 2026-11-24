@@ -10,7 +10,7 @@ const schemaMigration = "20261124110341_powerful_vivisector/migration.sql";
 const stateMigration = "20261124110907_seed_collector_state/migration.sql";
 
 export const withTestDatabase = async (
-  run: (db: Database) => Promise<void>
+  run: (db: Database, databaseUrl: string) => Promise<void>
 ) => {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -29,7 +29,7 @@ export const withTestDatabase = async (
     await db.$client.query(
       await file(new URL(stateMigration, migrations)).text()
     );
-    await run(db);
+    await run(db, url.href);
   } finally {
     await db.$client.end();
     try {

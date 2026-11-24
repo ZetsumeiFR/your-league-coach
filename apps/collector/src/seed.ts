@@ -97,13 +97,16 @@ function* seedWrites(tx: Transaction, seeds: readonly SeedInput[]) {
   }
 }
 
+export const seedKeyFingerprint = (apiKey: string) =>
+  createHash("sha256").update(apiKey).digest("hex");
+
 export const seedPlayersForKey = async (
   db: Database,
   riot: SeedClient,
   apiKey: string,
   { force = false, sample = false } = {}
 ): Promise<number> => {
-  const fingerprint = createHash("sha256").update(apiKey).digest("hex");
+  const fingerprint = seedKeyFingerprint(apiKey);
   await db.transaction(async (tx) => {
     const [state] = await tx.select().from(collectorState).for("update");
     if (state?.apiKeyFingerprint !== fingerprint) {

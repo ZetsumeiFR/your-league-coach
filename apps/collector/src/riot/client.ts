@@ -45,6 +45,7 @@ interface MatchListOptions {
 }
 
 export class RiotClient {
+  readonly #crawlDenied = new AbortController();
   readonly #options: RiotClientOptions;
   readonly #transport: RiotTransport;
   readonly #platform: string;
@@ -63,6 +64,10 @@ export class RiotClient {
     this.#transport = options.transport ?? fetch;
     this.#platform = `${options.platform.toLowerCase()}.api.riotgames.com`;
     this.#region = `${options.region.toLowerCase()}.api.riotgames.com`;
+  }
+
+  get crawlStop(): AbortSignal {
+    return this.#crawlDenied.signal;
   }
 
   async leagueExpEntries(
@@ -110,7 +115,8 @@ export class RiotClient {
       this.#region,
       "matchIdsByPuuid",
       `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${query}`,
-      matchIdsSchema
+      matchIdsSchema,
+      this.crawlStop
     );
   }
 
@@ -119,7 +125,8 @@ export class RiotClient {
       this.#region,
       "match",
       `/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
-      matchSchema
+      matchSchema,
+      this.crawlStop
     );
   }
 
@@ -128,7 +135,8 @@ export class RiotClient {
       this.#region,
       "timeline",
       `/lol/match/v5/matches/${encodeURIComponent(matchId)}/timeline`,
-      timelineSchema
+      timelineSchema,
+      this.crawlStop
     );
   }
 
@@ -157,17 +165,26 @@ export class RiotClient {
     host: string,
     method: string,
     path: string,
-    schema: z.ZodType<T>
+    schema: z.ZodType<T>,
+    crawlStop?: AbortSignal
   ) {
     const url = new URL(`https://${host}${path}`);
     const route = { host, method, path: url.pathname };
     const { limiter, signal } = this.#options;
+    // Only admission uses the crawl latch. An admitted HTTP request may finish.
+    const admission =
+      signal && crawlStop
+        ? AbortSignal.any([signal, crawlStop])
+        : (crawlStop ?? signal);
     const attempt = async (
       rateRetries: number,
       serverRetries: number
     ): Promise<T> => {
-      await limiter.acquire(route, signal);
+      admission?.throwIfAborted();
+      await limiter.acquire(route, admission);
+      admission?.throwIfAborted();
       const reply = await this.#attempt(url, route, schema);
+      crawlStop?.throwIfAborted();
       if (reply.kind === "ok") {
         return reply.data;
       }
@@ -178,9 +195,6 @@ export class RiotClient {
         throw new RiotTransportError(reply.reason);
       }
       const { status } = reply;
-      if (status === 401 || status === 403) {
-        throw new RiotAuthError(status);
-      }
       if (status === 429) {
         if (rateRetries >= RATE_LIMIT_RETRIES) {
           throw new RiotRateLimitError();
@@ -191,7 +205,7 @@ export class RiotClient {
       if (status < 500 || status >= 600 || backoff === undefined) {
         throw new RiotHttpError(status);
       }
-      await limiter.wait(backoff, signal);
+      await limiter.wait(backoff, admission);
       return await attempt(rateRetries, serverRetries + 1);
     };
     return await attempt(0, 0);
@@ -210,6 +224,12 @@ export class RiotClient {
         signal,
       });
       this.#options.limiter.observe(route, response.status, response.headers);
+      if (response.status === 401 || response.status === 403) {
+        // Latch synchronously for every endpoint, before body disposal or DB I/O.
+        this.#crawlDenied.abort();
+        await response.body?.cancel().catch(() => undefined);
+        throw new RiotAuthError(response.status);
+      }
       if (!response.ok) {
         // No error body is trusted or included in diagnostics.
         await response.body?.cancel();
@@ -220,7 +240,11 @@ export class RiotClient {
       return result.success
         ? ({ kind: "ok", data: result.data } as const)
         : ({ kind: "payload" } as const);
-    } catch {
+    } catch (error) {
+      if (error instanceof RiotAuthError) {
+        this.#crawlDenied.abort();
+        throw error;
+      }
       // Never attach the original error: transports and parse errors may contain sensitive input.
       if (signal.aborted) {
         return {
