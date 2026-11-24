@@ -5,7 +5,9 @@ import { QueryCache, QueryClient } from "@tanstack/react-query";
 import type { AppRouterClient } from "@your-league-coach/api/routers/index";
 import { toast } from "sonner";
 
-import { ENV } from "../env";
+import { getCoachSettings } from "@/lib/settings";
+
+const TRAILING_SLASH = /\/$/;
 
 export function createQueryClient() {
   return new QueryClient({
@@ -27,13 +29,8 @@ export function createQueryClient() {
 export const queryClient = createQueryClient();
 
 export const link = new RPCLink({
-  url: `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
-  fetch(url, options) {
-    return fetch(url, {
-      ...options,
-      credentials: "include",
-    });
-  },
+  url: () => `${getCoachSettings().serverUrl.replace(TRAILING_SLASH, "")}/rpc`,
+  headers: () => ({ Authorization: `Bearer ${getCoachSettings().accessKey}` }),
 });
 
 export const client: AppRouterClient = createORPCClient(link);

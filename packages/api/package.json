@@ -14,11 +14,11 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
-    "@your-league-coach/auth": "workspace:*",
     "@your-league-coach/db": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/bun": "catalog:",
     "@your-league-coach/config": "workspace:*",
     "typescript": "catalog:"
   }

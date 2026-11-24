@@ -55,9 +55,8 @@
     }
   },
   "globalEnv": [
-    "BETTER_AUTH_SECRET",
-    "BETTER_AUTH_URL",
     "CI",
+    "COACH_ACCESS_KEY",
     "CORS_ORIGIN",
     "DATABASE_URL",
     "NODE_ENV",

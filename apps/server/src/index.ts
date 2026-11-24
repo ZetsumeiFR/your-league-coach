@@ -10,7 +10,6 @@ import { logger } from "hono/logger";
 
 import { createContext } from "./context";
 import { desktopOrigins, ENV } from "./env.server";
-import { auth } from "./services";
 
 const app = new Hono();
 
@@ -21,11 +20,9 @@ app.use(
     origin: [ENV.CORS_ORIGIN, ...desktopOrigins],
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  }),
+    credentials: false,
+  })
 );
-
-app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [
@@ -49,11 +46,11 @@ export const rpcHandler = new RPCHandler(appRouter, {
 });
 
 app.use("/*", async (c, next) => {
-  const context = await createContext({ context: c });
+  const context = createContext({ context: c });
 
   const rpcResult = await rpcHandler.handle(c.req.raw, {
     prefix: "/rpc",
-    context: context,
+    context,
   });
 
   if (rpcResult.matched) {
@@ -62,7 +59,7 @@ app.use("/*", async (c, next) => {
 
   const apiResult = await apiHandler.handle(c.req.raw, {
     prefix: "/api-reference",
-    context: context,
+    context,
   });
 
   if (apiResult.matched) {
@@ -72,8 +69,6 @@ app.use("/*", async (c, next) => {
   await next();
 });
 
-app.get("/", (c) => {
-  return c.text("OK");
-});
+app.get("/", (c) => c.text("OK"));
 
 export default app;
