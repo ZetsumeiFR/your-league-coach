@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ROLES } from "./roles";
+import { lcuPositionSchema, ROLES } from "./roles";
 
 export type ChampionId = number;
 export type ItemId = number;
@@ -8,41 +8,73 @@ const championIdSchema = z.number().int().nonnegative();
 const itemIdSchema = z.number().int().positive();
 const roleSchema = z.enum(ROLES);
 
-/** Machine-readable explanation; the UI translates each code (no free text from the engines). */
-export const REASON_CODES = [
+/** Reason codes without a parameter. The UI translates each one; engines never emit free text. */
+export const PLAIN_REASON_CODES = [
   "strong_on_patch",
-  "counters_enemy",
-  "countered_by_enemy",
-  "synergy_with_ally",
   "in_your_pool",
-  "threat_to_role",
-  "high_win_rate",
+  "balances_damage",
   "anti_heal",
-  "anti_shield",
   "armor_vs_ad",
-  "magic_resist_vs_ap",
-  "armor_penetration",
+  "mr_vs_ap",
   "tenacity_vs_cc",
-  "anti_tank",
-  "enemy_item_counter",
+  "frontline_missing",
+  "penetration_vs_tanks",
 ] as const;
-export const reasonCodeSchema = z.enum(REASON_CODES);
-export type ReasonCode = z.infer<typeof reasonCodeSchema>;
+export type PlainReasonCode = (typeof PLAIN_REASON_CODES)[number];
 
-/** `championId` / `itemId` name the champion or item the reason refers to (e.g. "counters Darius"). */
-export const reasonSchema = z.object({
-  code: reasonCodeSchema,
-  championId: championIdSchema.optional(),
-  itemId: itemIdSchema.optional(),
-});
-export type Reason = z.infer<typeof reasonSchema>;
+/** Reason kinds that carry a champion id: "counters:122" reads "counters champion 122". */
+export const PARAM_REASON_KINDS = [
+  "counters",
+  "countered_by",
+  "synergy",
+] as const;
+export type ParamReasonKind = (typeof PARAM_REASON_KINDS)[number];
+export type ParamReasonCode = `${ParamReasonKind}:${number}`;
+
+export type ReasonCode = PlainReasonCode | ParamReasonCode;
+
+const PARAM_REASON_PATTERN = /^([a-z_]+):([1-9]\d*)$/;
+
+const isPlainReasonCode = (value: string): value is PlainReasonCode =>
+  (PLAIN_REASON_CODES as readonly string[]).includes(value);
+
+const isParamReasonKind = (value: string): value is ParamReasonKind =>
+  (PARAM_REASON_KINDS as readonly string[]).includes(value);
+
+export const reasonCode = (
+  kind: ParamReasonKind,
+  championId: ChampionId
+): ParamReasonCode => `${kind}:${championId}`;
+
+export type ParsedReasonCode =
+  | { kind: PlainReasonCode }
+  | { kind: ParamReasonKind; championId: ChampionId };
+
+/** Returns null when `code` is not one of the allowed literals or `<kind>:<positive int>` forms. */
+export const parseReasonCode = (code: string): ParsedReasonCode | null => {
+  if (isPlainReasonCode(code)) {
+    return { kind: code };
+  }
+  const match = PARAM_REASON_PATTERN.exec(code);
+  const [, kind, id] = match ?? [];
+  if (kind && id && isParamReasonKind(kind)) {
+    return { kind, championId: Number(id) };
+  }
+  return null;
+};
+
+export const reasonCodeSchema = z.custom<ReasonCode>(
+  (value) => typeof value === "string" && parseReasonCode(value) !== null,
+  { message: "Invalid reason code" }
+);
 
 /** Champion id 0 means "none" (LCU convention). */
 const draftMemberSchema = z.object({
   cellId: z.number().int(),
   championId: championIdSchema,
   championPickIntent: championIdSchema,
-  assignedPosition: roleSchema.nullable(),
+  /** Raw LCU position; use lcuPositionToRole to normalize. */
+  assignedPosition: lcuPositionSchema,
 });
 
 export const draftStateSchema = z.object({
@@ -90,7 +122,7 @@ export const pickSuggestionSchema = z.object({
   }),
   winRate: z.number().min(0).max(1),
   sampleGames: z.number().int().nonnegative(),
-  reasons: z.array(reasonSchema),
+  reasons: z.array(reasonCodeSchema),
 });
 export type PickSuggestion = z.infer<typeof pickSuggestionSchema>;
 
@@ -99,18 +131,47 @@ export const banSuggestionSchema = z.object({
   score: z.number(),
   winRate: z.number().min(0).max(1),
   sampleGames: z.number().int().nonnegative(),
-  reasons: z.array(reasonSchema),
+  reasons: z.array(reasonCodeSchema),
 });
 export type BanSuggestion = z.infer<typeof banSuggestionSchema>;
+
+/** Patch label and blend provenance are stated once per response, not per row. */
+export const pickSuggestionsSchema = z.object({
+  patch: z.string(),
+  sources: blendSourcesSchema,
+  suggestions: z.array(pickSuggestionSchema),
+});
+export type PickSuggestions = z.infer<typeof pickSuggestionsSchema>;
+
+export const banSuggestionsSchema = z.object({
+  patch: z.string(),
+  sources: blendSourcesSchema,
+  suggestions: z.array(banSuggestionSchema),
+});
+export type BanSuggestions = z.infer<typeof banSuggestionsSchema>;
 
 export const SKILL_KEYS = ["Q", "W", "E", "R"] as const;
 export const skillKeySchema = z.enum(SKILL_KEYS);
 export type SkillKey = z.infer<typeof skillKeySchema>;
 
+/** Composition rule ids; each is also the reason code its adjustment reports. */
+export const BUILD_RULE_IDS = [
+  "anti_heal",
+  "armor_vs_ad",
+  "mr_vs_ap",
+  "tenacity_vs_cc",
+  "frontline_missing",
+  "penetration_vs_tanks",
+] as const;
+export const buildRuleIdSchema = z.enum(BUILD_RULE_IDS);
+export type BuildRuleId = z.infer<typeof buildRuleIdSchema>;
+
 export const buildAdjustmentSchema = z.object({
-  action: z.enum(["add", "replace_boots", "replace_core"]),
-  itemId: itemIdSchema,
-  reason: reasonSchema,
+  ruleId: buildRuleIdSchema,
+  reasonCode: reasonCodeSchema,
+  /** The base-build item this adjustment swaps out; absent when the item is simply added. */
+  replaced: itemIdSchema.optional(),
+  added: itemIdSchema,
 });
 export type BuildAdjustment = z.infer<typeof buildAdjustmentSchema>;
 

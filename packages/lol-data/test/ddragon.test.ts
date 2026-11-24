@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
+import type { AddressInfo } from "node:net";
 import { ZodError } from "zod";
 import {
   championIconUrl,
@@ -62,6 +68,48 @@ describe("ddragon fixtures", () => {
 });
 
 describe("ddragon malformed input", () => {
+  it("requires the 11 and 12 map flags, naming the missing key", async () => {
+    const json = (await fixture("item.en_US.json")) as {
+      data: Record<string, { maps?: unknown }>;
+    };
+    const [first] = Object.values(json.data);
+    if (first) {
+      first.maps = {};
+    }
+    try {
+      parseItems(json);
+      expect.unreachable("parseItems should have thrown");
+    } catch (error) {
+      const paths = zodPaths(error);
+      expect(paths.some((path) => path.endsWith("maps.11"))).toBe(true);
+      expect(paths.some((path) => path.endsWith("maps.12"))).toBe(true);
+    }
+  });
+
+  it("accepts legitimate false map flags", async () => {
+    const json = (await fixture("item.en_US.json")) as {
+      data: Record<string, { maps?: unknown }>;
+    };
+    const [first] = Object.values(json.data);
+    if (first) {
+      first.maps = { "11": false, "12": false };
+    }
+    const [item] = parseItems(json);
+    expect(item?.onSummonersRift).toBe(false);
+    expect(item?.onHowlingAbyss).toBe(false);
+  });
+
+  it("rejects non-numeric item ids instead of producing NaN", async () => {
+    const json = (await fixture("item.en_US.json")) as {
+      data: Record<string, { from?: string[] }>;
+    };
+    const [first] = Object.values(json.data);
+    if (first) {
+      first.from = ["bad"];
+    }
+    expect(() => parseItems(json)).toThrow(ZodError);
+  });
+
   it("names the missing champion field in the zod error", async () => {
     const json = (await fixture("champion.fr_FR.json")) as {
       data: Record<string, { name?: string }>;
@@ -95,13 +143,68 @@ describe("ddragon malformed input", () => {
   });
 });
 
-describe("ddragon fetch", () => {
-  it("fails within the timeout instead of hanging on an unreachable host", async () => {
+const serve = async (
+  handler: (request: IncomingMessage, response: ServerResponse) => void
+): Promise<{ baseUrl: string; close: () => void }> => {
+  const server = createServer(handler);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () => {
+      server.closeAllConnections();
+      server.close();
+    },
+  };
+};
+
+describe("ddragon fetch (local server only)", () => {
+  it("returns validated versions from the server", async () => {
+    const versions = await fixture("versions.json");
+    const { baseUrl, close } = await serve((request, response) => {
+      expect(request.url).toBe("/api/versions.json");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify(versions));
+    });
+    try {
+      expect((await fetchVersions({ baseUrl }))[0]).toBe(
+        (versions as string[])[0]
+      );
+    } finally {
+      close();
+    }
+  });
+
+  it("rejects non-2xx responses", async () => {
+    const { baseUrl, close } = await serve((_request, response) => {
+      response.statusCode = 503;
+      response.end();
+    });
+    try {
+      await expect(fetchVersions({ baseUrl })).rejects.toThrow("HTTP 503");
+    } finally {
+      close();
+    }
+  });
+
+  it("aborts a never-answering server at the configured deadline", async () => {
+    const timeoutMs = 300;
+    const { baseUrl, close } = await serve(() => {
+      // never respond: only the AbortSignal deadline can end the request
+    });
     const startedAt = performance.now();
-    await expect(
-      fetchVersions({ baseUrl: "http://10.255.255.1", timeoutMs: 300 })
-    ).rejects.toThrow();
-    expect(performance.now() - startedAt).toBeLessThan(3000);
+    try {
+      const error = await fetchVersions({ baseUrl, timeoutMs }).then(
+        () => null,
+        (rejection: unknown) => rejection
+      );
+      expect((error as Error | null)?.name).toBe("TimeoutError");
+      expect(performance.now() - startedAt).toBeGreaterThanOrEqual(
+        timeoutMs - 50
+      );
+    } finally {
+      close();
+    }
   });
 });
 

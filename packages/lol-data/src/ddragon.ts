@@ -11,10 +11,13 @@ export interface DdragonOptions {
   timeoutMs?: number;
 }
 
+const NUMERIC_PATTERN = /^\d+$/;
+const numericString = z.string().regex(NUMERIC_PATTERN);
+
 const versionsSchema = z.array(z.string()).min(1);
 
 const championSchema = z.object({
-  key: z.string().regex(/^\d+$/),
+  key: numericString,
   id: z.string(),
   name: z.string(),
   tags: z.array(z.string()),
@@ -33,14 +36,14 @@ const itemSchema = z.object({
   name: z.string(),
   tags: z.array(z.string()),
   gold: z.object({ total: z.number() }),
-  into: z.array(z.string()).optional(),
-  from: z.array(z.string()).optional(),
-  maps: z.record(z.string(), z.boolean()),
+  into: z.array(numericString).optional(),
+  from: z.array(numericString).optional(),
+  maps: z.object({ "11": z.boolean(), "12": z.boolean() }),
   depth: z.number().optional(),
 });
 
 const itemsResponseSchema = z.object({
-  data: z.record(z.string(), itemSchema),
+  data: z.record(numericString, itemSchema),
 });
 
 const runeSchema = z.object({
@@ -61,7 +64,7 @@ const runeTreeSchema = z.object({
 const runesResponseSchema = z.array(runeTreeSchema);
 
 const spellSchema = z.object({
-  key: z.string().regex(/^\d+$/),
+  key: numericString,
   id: z.string(),
   name: z.string(),
   modes: z.array(z.string()),
@@ -117,8 +120,8 @@ export const parseItems = (json: unknown): Item[] =>
     into: (item.into ?? []).map(Number),
     from: (item.from ?? []).map(Number),
     depth: item.depth,
-    onSummonersRift: item.maps["11"] === true,
-    onHowlingAbyss: item.maps["12"] === true,
+    onSummonersRift: item.maps["11"],
+    onHowlingAbyss: item.maps["12"],
   }));
 
 export const parseRunes = (json: unknown): RuneTree[] =>
