@@ -1,0 +1,19 @@
+{
+  "name": "@your-league-coach/coach",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check-types": "tsc -b",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@your-league-coach/lol-data": "workspace:*"
+  },
+  "devDependencies": {
+    "@your-league-coach/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
