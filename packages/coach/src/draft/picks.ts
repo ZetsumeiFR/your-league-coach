@@ -40,7 +40,7 @@ export type { ChampionDamageInfo } from "./composition";
 export type { ChampionRoleStats, MatchupStats, SynergyStats } from "./scoring";
 
 export interface SuggestPicksInput extends DraftScoringInput {
-  readonly championInfo: readonly ChampionDamageInfo[];
+  readonly championInfo?: readonly ChampionDamageInfo[];
   readonly stats: {
     readonly championRole: readonly ChampionRoleStats[];
     readonly matchups: readonly MatchupStats[];
@@ -137,12 +137,7 @@ function revealedEnemies(input: SuggestPicksInput, role: Role): DraftPeer[] {
       ? inferEnemyRoles(ids, input.stats.roleDistribution)
       : undefined;
   return ids.map((championId) => {
-    const hasRoleData = Object.values(
-      input.stats.roleDistribution[championId] ?? {}
-    ).some((games) => games > 0);
-    const inferred = hasRoleData
-      ? (assignments?.get(championId)?.role ?? null)
-      : null;
+    const inferred = assignments?.get(championId)?.role ?? null;
     return {
       championId,
       role: inferred,
@@ -191,8 +186,12 @@ function candidateRows(
 
 /** Uses neutral pair deltas for missing rows and omits composition scoring without full damage info. */
 export function suggestPicks(input: SuggestPicksInput): PickSuggestion[] {
-  const { role, draft, pool, stats, championInfo } = input;
-  if (role === null || stats.championRole.length === 0) {
+  const { role, draft, pool, stats, championInfo = [] } = input;
+  const hasScoringStats =
+    stats.championRole.length > 0 ||
+    stats.matchups.length > 0 ||
+    stats.synergies.length > 0;
+  if (role === null || !hasScoringStats) {
     return [];
   }
   const allies = draft.myTeam
