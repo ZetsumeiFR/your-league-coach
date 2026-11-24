@@ -29,7 +29,7 @@ pub fn pinned_tls_from(override_path: Option<&Path>) -> Result<ClientConfig, Err
         return Err(Error::Tls);
     }
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let verifier = LoopbackVerifier::new(roots, provider.signature_verification_algorithms);
+    let verifier = LoopbackVerifier::new(roots, provider.clone()).map_err(|_| Error::Tls)?;
     Ok(ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|_| Error::Tls)?
