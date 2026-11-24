@@ -39,6 +39,149 @@
     {
       "includes": ["packages/ui/src/components/message-scroller.tsx"],
       "linter": { "rules": { "style": { "noExportedImports": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/breadcrumb.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useFocusableInteractive": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/components/item.tsx"],
+      "linter": { "rules": { "a11y": { "useSemanticElements": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/sheet.tsx"],
+      "linter": { "rules": { "suspicious": { "noLeakedRender": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/sidebar.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": { "useExhaustiveDependencies": "off" },
+          "performance": {
+            "noJsxPropsBind": "off",
+            "noNamespaceImport": "off"
+          },
+          "style": { "useConsistentTypeDefinitions": "off" },
+          "suspicious": {
+            "noDocumentCookie": "off",
+            "noLeakedRender": "off",
+            "noShadow": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/components/toggle-group.tsx",
+        "packages/ui/src/hooks/use-mobile.ts"
+      ],
+      "linter": { "rules": { "performance": { "noNamespaceImport": "off" } } }
+    },
+    {
+      "includes": ["packages/ui/src/components/reui/stepper.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": { "useExhaustiveDependencies": "off" },
+          "style": {
+            "noNestedTernary": "off",
+            "noNonNullAssertion": "off",
+            "useConsistentTypeDefinitions": "off",
+            "useDefaultSwitchClause": "off"
+          },
+          "suspicious": { "noLeakedRender": "off" }
+        }
+      }
+    },
+    // Installed registry items must render the registry's markup unchanged, so
+    // the rules that reorder JSX attributes or class strings are off for exactly
+    // the files below. Add a newly installed file only where the rule fires.
+    {
+      "includes": [
+        "packages/ui/src/reui/icons/default/outline/arrow-down-right.tsx",
+        "packages/ui/src/reui/icons/default/outline/arrow-up-left.tsx",
+        "packages/ui/src/reui/icons/default/outline/arrows-diagonal.tsx",
+        "packages/ui/src/reui/icons/default/outline/cloud.tsx",
+        "packages/ui/src/reui/icons/default/outline/cross-circle.tsx",
+        "packages/ui/src/reui/icons/default/outline/disconnect.tsx",
+        "packages/ui/src/reui/icons/default/outline/entrance-up.tsx",
+        "packages/ui/src/reui/icons/default/outline/exclamation-circle.tsx",
+        "packages/ui/src/reui/icons/default/outline/game-console.tsx",
+        "packages/ui/src/reui/icons/default/outline/gear.tsx",
+        "packages/ui/src/reui/icons/default/outline/globe.tsx",
+        "packages/ui/src/reui/icons/default/outline/hash.tsx",
+        "packages/ui/src/reui/icons/default/outline/home.tsx",
+        "packages/ui/src/reui/icons/default/outline/key.tsx",
+        "packages/ui/src/reui/icons/default/outline/link.tsx",
+        "packages/ui/src/reui/icons/default/outline/loading.tsx",
+        "packages/ui/src/reui/icons/default/outline/moon.tsx",
+        "packages/ui/src/reui/icons/default/outline/pin.tsx",
+        "packages/ui/src/reui/icons/default/outline/refresh-arrow-clockwise.tsx",
+        "packages/ui/src/reui/icons/default/outline/shield.tsx",
+        "packages/ui/src/reui/icons/default/outline/sun.tsx",
+        "packages/ui/src/reui/icons/default/outline/target.tsx",
+        "packages/ui/src/reui/icons/default/outline/tree.tsx",
+        "packages/ui/src/reui/icons/default/outline/wrench.tsx"
+      ],
+      "linter": { "rules": { "a11y": { "noSvgWithoutTitle": "off" } } },
+      "assist": {
+        "actions": { "source": { "useSortedAttributes": "off" } }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/breadcrumb.tsx",
+        "packages/ui/src/components/examples/c-progress-2.tsx",
+        "packages/ui/src/components/item.tsx",
+        "packages/ui/src/components/kbd.tsx",
+        "packages/ui/src/components/progress.tsx",
+        "packages/ui/src/components/reui/alert.tsx",
+        "packages/ui/src/components/reui/icon-stack.tsx",
+        "packages/ui/src/components/reui/stepper.tsx",
+        "packages/ui/src/components/select.tsx",
+        "packages/ui/src/components/separator.tsx",
+        "packages/ui/src/components/sheet.tsx",
+        "packages/ui/src/components/sidebar.tsx",
+        "packages/ui/src/components/switch.tsx",
+        "packages/ui/src/components/tabs.tsx",
+        "packages/ui/src/components/toggle-group.tsx",
+        "packages/ui/src/components/toggle.tsx"
+      ],
+      "assist": {
+        "actions": { "source": { "useSortedAttributes": "off" } }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/breadcrumb.tsx",
+        "packages/ui/src/components/examples/c-frame-2.tsx",
+        "packages/ui/src/components/examples/c-frame-3.tsx",
+        "packages/ui/src/components/item.tsx",
+        "packages/ui/src/components/kbd.tsx",
+        "packages/ui/src/components/progress.tsx",
+        "packages/ui/src/components/reui/alert.tsx",
+        "packages/ui/src/components/reui/badge.tsx",
+        "packages/ui/src/components/reui/frame.tsx",
+        "packages/ui/src/components/reui/icon-stack.tsx",
+        "packages/ui/src/components/reui/icon-tile.tsx",
+        "packages/ui/src/components/reui/stepper.tsx",
+        "packages/ui/src/components/select.tsx",
+        "packages/ui/src/components/sheet.tsx",
+        "packages/ui/src/components/sidebar.tsx",
+        "packages/ui/src/components/switch.tsx",
+        "packages/ui/src/components/tabs.tsx",
+        "packages/ui/src/components/toggle-group.tsx",
+        "packages/ui/src/components/toggle.tsx"
+      ],
+      "linter": { "rules": { "nursery": { "useSortedClasses": "off" } } }
     }
   ]
 }

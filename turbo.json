@@ -71,5 +71,6 @@
     "VITE_SERVER_URL",
     "_VARLOCK_ENV_KEY"
   ],
+  "globalPassThroughEnv": ["REUI_LICENSE_KEY"],
   "globalDependencies": [".env*", "apps/*/.env*", "packages/*/.env*"]
 }
