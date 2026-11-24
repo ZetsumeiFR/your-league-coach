@@ -20,6 +20,7 @@
     "apps/collector": {
       "name": "collector",
       "dependencies": {
+        "@your-league-coach/coach": "workspace:*",
         "@your-league-coach/db": "workspace:*",
         "@your-league-coach/lol-data": "workspace:*",
         "drizzle-orm": "catalog:",
