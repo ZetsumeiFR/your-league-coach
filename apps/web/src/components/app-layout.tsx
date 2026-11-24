@@ -95,11 +95,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell
       actions={
-        <>
+        <div className="ml-auto flex shrink-0 items-center gap-2 px-4">
           <ClientStatusBadge />
           <PatchBadge />
           <ModeToggle />
-        </>
+        </div>
       }
       home={{ label: t("app.name"), render: <Link to="/" /> }}
       onOpenChange={setOpen}

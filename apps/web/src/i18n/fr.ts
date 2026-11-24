@@ -143,7 +143,11 @@ export const fr: Dictionary = {
     reset: "Réinitialiser",
     saved: "Réglages enregistrés.",
     saveFailed: "Impossible d'enregistrer les réglages.",
-    preferences: { title: "Préférences" },
+    preferences: {
+      title: "Préférences",
+      description: "Elles s'appliquent dès que tu les changes.",
+      general: "Général",
+    },
     language: {
       title: "Langue",
       description: "Auto suit la langue de ton client League.",

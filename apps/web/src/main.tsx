@@ -7,9 +7,10 @@ import { loadSettings } from "./lib/settings-store";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
 
-// Browser QA only. The flag is replaced at build time, so a desktop build
-// (flag unset) drops this branch together with the mock and its fixtures.
-if (import.meta.env.VITE_YLC_MOCK_IPC === "1") {
+// Browser QA only, and only in the dev server. Both conditions are replaced at
+// build time, so a production build drops this branch together with the mock
+// and its fixtures, even when the flag is still set in the environment.
+if (import.meta.env.DEV && import.meta.env.VITE_YLC_MOCK_IPC === "1") {
   const { installDesktopMock } = await import("./lib/desktop/mock");
   installDesktopMock();
 }

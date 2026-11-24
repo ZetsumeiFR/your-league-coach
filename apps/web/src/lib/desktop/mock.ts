@@ -1,5 +1,5 @@
 /**
- * Stand-in for the Tauri backend, loaded only when VITE_YLC_MOCK_IPC is "1"
+ * Stand-in for the Tauri backend, loaded only by the dev server when VITE_YLC_MOCK_IPC is "1"
  * (browser QA: the macOS webview cannot be driven by a test runner). It replays
  * the fixtures of scripts/fake-riot-client through test/support/backend-mirror,
  * so the app receives what the real connectors would emit for the same client

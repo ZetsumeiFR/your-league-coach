@@ -4,7 +4,6 @@ import {
   type BadgeProps,
 } from "@your-league-coach/ui/components/reui/badge";
 import { Frame, FramePanel } from "@your-league-coach/ui/components/reui/frame";
-import { cn } from "cn";
 import type { ReactNode } from "react";
 
 export interface StatCard {
@@ -31,12 +30,7 @@ export function Stats({ cards }: { cards: StatCard[] }) {
           <FramePanel className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-2">
               <Item
-                className={cn(
-                  "border-background bg-muted flex size-10.5 items-center justify-center border-2 p-0 shadow-[0_1px_3px_0_rgba(0,0,0,0.14)] dark:border [&_svg]:size-5",
-                  // A long badge beside the tile must not squeeze it.
-                  "shrink-0",
-                  card.iconColor
-                )}
+                className={`border-background bg-muted flex size-10.5 items-center justify-center border-2 p-0 shadow-[0_1px_3px_0_rgba(0,0,0,0.14)] dark:border [&_svg]:size-5 ${card.iconColor}`}
               >
                 <ItemMedia variant="icon" className="size-auto">
                   {card.icon}

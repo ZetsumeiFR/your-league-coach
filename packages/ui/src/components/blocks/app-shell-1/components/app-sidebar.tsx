@@ -15,14 +15,6 @@ interface RailLabels {
   expand: string;
 }
 
-/*
- * Keyboard focus shows what the block shows on hover: the bar bends into an
- * arrow and the label slides in. As shipped, focus on the toggle was invisible.
- */
-const RAIL_FOCUS_BAR = "group-focus-visible/rail:bg-foreground/60";
-const RAIL_FOCUS_LABEL =
-  "group-focus-visible/rail:translate-x-0 group-focus-visible/rail:opacity-100";
-
 function SidebarRailToggle({ labels }: { labels: RailLabels }) {
   const { state, toggleSidebar } = useSidebar();
   const isExpanded = state === "expanded";
@@ -50,11 +42,7 @@ function SidebarRailToggle({ labels }: { labels: RailLabels }) {
             "origin-bottom transition-all duration-100 ease-linear",
             isExpanded
               ? "group-hover/rail:bg-foreground/60 group-hover/rail:rotate-40"
-              : "group-hover/rail:bg-foreground/60 group-hover/rail:-rotate-40",
-            RAIL_FOCUS_BAR,
-            isExpanded
-              ? "group-focus-visible/rail:rotate-40"
-              : "group-focus-visible/rail:-rotate-40"
+              : "group-hover/rail:bg-foreground/60 group-hover/rail:-rotate-40"
           )}
         />
         {/* Bottom half - pivots at its top (the bar's center) */}
@@ -65,11 +53,7 @@ function SidebarRailToggle({ labels }: { labels: RailLabels }) {
             "origin-top transition-all duration-100 ease-linear",
             isExpanded
               ? "group-hover/rail:bg-foreground/60 group-hover/rail:-rotate-40"
-              : "group-hover/rail:bg-foreground/60 group-hover/rail:rotate-40",
-            RAIL_FOCUS_BAR,
-            isExpanded
-              ? "group-focus-visible/rail:-rotate-40"
-              : "group-focus-visible/rail:rotate-40"
+              : "group-hover/rail:bg-foreground/60 group-hover/rail:rotate-40"
           )}
         />
       </span>
@@ -80,8 +64,7 @@ function SidebarRailToggle({ labels }: { labels: RailLabels }) {
           "border-border bg-foreground text-background absolute left-full -ml-2 rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap shadow-xs shadow-black/5",
           "pointer-events-none transition-all duration-200 ease-out",
           "-translate-x-0.5 opacity-0",
-          "group-hover/rail:translate-x-0 group-hover/rail:opacity-100",
-          RAIL_FOCUS_LABEL
+          "group-hover/rail:translate-x-0 group-hover/rail:opacity-100"
         )}
       >
         {label}

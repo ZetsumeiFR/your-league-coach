@@ -113,9 +113,17 @@
         }
       }
     },
+    {
+      // The block ships its select handler inline; kept as shipped.
+      "includes": [
+        "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx"
+      ],
+      "linter": { "rules": { "performance": { "noJsxPropsBind": "off" } } }
+    },
     // Installed registry items must render the registry's markup unchanged, so
-    // the rules that reorder JSX attributes or class strings are off for exactly
-    // the files below. Add a newly installed file only where the rule fires.
+    // the rules that reorder JSX attributes or class strings are off for the
+    // files below: every file where a rule fires, and every retained file of an
+    // installed block whether or not it fires today.
     {
       "includes": [
         "packages/ui/src/reui/icons/default/outline/arrow-down-right.tsx",
@@ -157,6 +165,7 @@
         "packages/ui/src/components/blocks/app-shell-1/components/nav-main.tsx",
         "packages/ui/src/components/blocks/app-shell-1/components/nav-secondary.tsx",
         "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/general-settings.tsx",
         "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
         "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
         "packages/ui/src/components/blocks/stats-8/components/stats.tsx",
@@ -185,8 +194,12 @@
     {
       "includes": [
         "packages/ui/src/components/avatar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/app-shell.tsx",
         "packages/ui/src/components/blocks/app-shell-1/components/app-sidebar.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-main.tsx",
+        "packages/ui/src/components/blocks/app-shell-1/components/nav-secondary.tsx",
         "packages/ui/src/components/blocks/app-shell-1/components/sidebar-brand.tsx",
+        "packages/ui/src/components/blocks/settings-3/components/general-settings.tsx",
         "packages/ui/src/components/blocks/settings-3/components/setting-field.tsx",
         "packages/ui/src/components/blocks/settings-9/components/workspace-preferences.tsx",
         "packages/ui/src/components/blocks/stats-8/components/stats.tsx",

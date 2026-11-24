@@ -17,9 +17,9 @@ interface GeneralSettingsProps {
 }
 
 /**
- * ReUI settings-3, adapted: the frame, its row list and its footer bar are
- * kept; the rows and footer buttons come from the caller, which owns the form
- * state, and the width cap is left to the route.
+ * ReUI settings-3 with its demo rows replaced: the frame, its row list and its
+ * footer bar are as shipped; the rows and the footer buttons come from the
+ * caller, which owns the form state.
  */
 export function GeneralSettings({
   children,
@@ -28,7 +28,7 @@ export function GeneralSettings({
   title,
 }: GeneralSettingsProps) {
   return (
-    <Frame className="w-full">
+    <Frame className="w-full max-w-3xl">
       <FrameHeader className="px-2! py-2.5!">
         <FrameTitle>{title}</FrameTitle>
         <FrameDescription>{description}</FrameDescription>

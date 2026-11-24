@@ -53,7 +53,9 @@ export function SettingField({
             )}
 
             {badge ? (
-              <Badge variant={badge.variant}>{badge.label}</Badge>
+              <Badge variant={badge.variant} size="sm">
+                {badge.label}
+              </Badge>
             ) : null}
           </div>
 

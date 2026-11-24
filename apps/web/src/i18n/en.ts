@@ -146,7 +146,11 @@ export const en = {
     reset: "Reset",
     saved: "Settings saved.",
     saveFailed: "Settings could not be saved.",
-    preferences: { title: "Preferences" },
+    preferences: {
+      title: "Preferences",
+      description: "They apply as soon as you change them.",
+      general: "General",
+    },
     language: {
       title: "Language",
       description: "Auto follows the language of your League client.",
