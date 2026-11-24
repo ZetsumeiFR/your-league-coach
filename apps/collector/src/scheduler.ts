@@ -15,6 +15,8 @@ export type Job = "patch" | "aggregate" | "retention" | "seed" | "crawl";
 type JobResult = "done" | "idle" | "failed" | "auth";
 type Work = () => Promise<unknown>;
 
+export class JobInterruptedError extends Error {}
+
 interface Clock {
   readonly now: () => number;
   readonly wait: (ms: number, signal: AbortSignal) => Promise<void>;
@@ -33,8 +35,14 @@ const systemClock: Clock = {
   },
 };
 
-export const jobErrorMessage = (job: Job, error: unknown) =>
-  error instanceof RiotAuthError ? error.message : `${job} job failed`;
+export const jobErrorMessage = (job: Job, error: unknown) => {
+  if (error instanceof RiotAuthError) {
+    return error.message;
+  }
+  return error instanceof JobInterruptedError
+    ? `${job} job interrupted`
+    : `${job} job failed`;
+};
 
 export const recordJobError = async (
   db: Database,
@@ -124,24 +132,13 @@ function* cycles<T>(cycle: () => Promise<T>, signal: AbortSignal) {
   }
 }
 
-const runRiot = async (options: SchedulerOptions) => {
-  const { clock = systemClock, log, riot, signal } = options;
-  if (!riot) {
-    return;
-  }
-  let nextSeedAt = clock.now();
+const runCrawl = async (
+  options: SchedulerOptions,
+  crawl: () => Promise<boolean>
+) => {
+  const { clock = systemClock, log, signal } = options;
   const cycle = async () => {
-    if (clock.now() >= nextSeedAt) {
-      const seeded = await runJob(options, "seed", riot.seed);
-      if (seeded === "auth") {
-        return "auth";
-      }
-      nextSeedAt =
-        clock.now() + (seeded === "done" ? SEED_INTERVAL_MS : CRAWL_RETRY_MS);
-    }
-    // Running the daily refresh between windows prevents overlapping seed and
-    // crawl writes, while the Data Dragon and SQL loops remain independent.
-    const crawled = await runJob(options, "crawl", riot.crawl);
+    const crawled = await runJob(options, "crawl", crawl);
     if (!signal.aborted && (crawled === "failed" || crawled === "idle")) {
       await clock.wait(
         crawled === "idle" ? IDLE_CRAWL_MS : CRAWL_RETRY_MS,
@@ -159,7 +156,7 @@ const runRiot = async (options: SchedulerOptions) => {
 };
 
 export const runScheduler = async (options: SchedulerOptions) => {
-  const { jobs, log } = options;
+  const { jobs, log, riot } = options;
   log(
     options.riot
       ? "Collector started"
@@ -173,7 +170,14 @@ export const runScheduler = async (options: SchedulerOptions) => {
     periodic(options, AGGREGATE_INTERVAL_MS, () =>
       runJob(options, "aggregate", jobs.aggregate)
     ),
-    runRiot(options),
+    ...(riot
+      ? [
+          periodic(options, SEED_INTERVAL_MS, () =>
+            runJob(options, "seed", riot.seed)
+          ),
+          runCrawl(options, riot.crawl),
+        ]
+      : []),
   ]);
   if (outcomes.some((outcome) => outcome.status === "rejected")) {
     throw new Error("Collector scheduler failed");

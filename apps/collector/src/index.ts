@@ -1,4 +1,5 @@
 import { createDb } from "@your-league-coach/db";
+import { collectorState } from "@your-league-coach/db/schema/lol";
 import {
   fetchChampions,
   fetchItems,
@@ -13,11 +14,12 @@ import { RiotClient } from "./riot/client";
 import { RiotRateLimiter } from "./riot/rate-limiter";
 import {
   type Job,
+  JobInterruptedError,
   jobErrorMessage,
   recordJobError,
   runScheduler,
 } from "./scheduler";
-import { seedPlayersForKey } from "./seed";
+import { seedKeyFingerprint, seedPlayersForKey } from "./seed";
 import { readStatWindow } from "./stat-window";
 
 // --no-crawl disables both Riot jobs, leaving patch/aggregation/retention active.
@@ -134,12 +136,11 @@ const runOnce = async (
     }
     case "aggregate": {
       const replaced = await jobs.aggregate();
-      writeLog(
-        replaced
-          ? "Aggregation complete"
-          : "Aggregation skipped: no stable patch window"
-      );
-      return replaced ? 0 : 1;
+      if (!replaced) {
+        throw new Error("No stable patch window");
+      }
+      writeLog("Aggregation complete");
+      return 0;
     }
     case "retention": {
       const retained = await jobs.retention();
@@ -154,11 +155,13 @@ const runOnce = async (
         force: true,
         sample: limit !== undefined,
       });
+      work.signal?.throwIfAborted();
       writeLog(`Seeds refreshed: ${seeds}`);
       return 0;
     }
     case "crawl": {
       const inserted = await crawlOnce(work, limit);
+      work.signal?.throwIfAborted();
       writeLog(`Matches inserted: ${inserted}`);
       return 0;
     }
@@ -169,11 +172,19 @@ const runOnce = async (
 
 const scheduledRiot = (work: RiotWork) => {
   const { db, riot, apiKey } = work;
+  const fingerprint = seedKeyFingerprint(apiKey);
   const nextQueue = createCrawlQueueRotation();
   return {
     seed: () =>
       seedPlayersForKey(db, riot, apiKey, { force: true, sample: false }),
     crawl: async () => {
+      // The seed lane may still be rotating a previous key's roster at startup.
+      const [state] = await db
+        .select({ fingerprint: collectorState.apiKeyFingerprint })
+        .from(collectorState);
+      if (state?.fingerprint !== fingerprint) {
+        return false;
+      }
       if ((await readStatWindow(db)).length === 0) {
         return false;
       }
@@ -194,16 +205,20 @@ const reportFailure = async (
   signal: AbortSignal,
   error: unknown
 ) => {
+  if (command.mode === "once") {
+    const failure = signal.aborted ? new JobInterruptedError() : error;
+    const message = signal.aborted
+      ? "Collector interrupted"
+      : jobErrorMessage(command.job, failure);
+    process.stderr.write(`${message}\n`);
+    await recordJobError(db, command.job, failure);
+    return 1;
+  }
   if (signal.aborted) {
     process.stderr.write("Collector interrupted\n");
-    return command.mode === "scheduled" ? 0 : 1;
+    return 0;
   }
-  if (command.mode === "once") {
-    process.stderr.write(`${jobErrorMessage(command.job, error)}\n`);
-    await recordJobError(db, command.job, error);
-  } else {
-    process.stderr.write("Collector scheduler failed\n");
-  }
+  process.stderr.write("Collector scheduler failed\n");
   return 1;
 };
 
@@ -266,7 +281,10 @@ const run = async (args: readonly string[]) => {
       loadItems: createItemLoader(DDRAGON_BASE_URL),
     };
     if (command.mode === "once") {
-      return await runOnce(command, jobs, deps);
+      signal.throwIfAborted();
+      const status = await runOnce(command, jobs, deps);
+      signal.throwIfAborted();
+      return status;
     }
     await runScheduler({
       db,

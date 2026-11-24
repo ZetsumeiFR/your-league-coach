@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { setImmediate as drainTurn } from "node:timers/promises";
 import { collectorState } from "@your-league-coach/db/schema/lol";
 import { checkPatches } from "../../src/patch";
 import { RiotAuthError } from "../../src/riot/errors";
@@ -6,6 +7,7 @@ import { runScheduler } from "../../src/scheduler";
 import { withTestDatabase } from "../test-database";
 
 const MINUTE = 60_000;
+const DAY = 24 * 60 * MINUTE;
 
 class SchedulerClock {
   #time = 0;
@@ -144,58 +146,87 @@ test.skipIf(!process.env.DATABASE_URL)(
   }
 );
 
-test.skipIf(!process.env.DATABASE_URL)(
-  "Riot authentication failure halts only the crawl lane",
-  async () => {
-    await withTestDatabase(async (db) => {
-      const clock = new SchedulerClock();
-      const stop = new AbortController();
-      const stoppedCrawl = Promise.withResolvers<void>();
-      const secondAggregate = Promise.withResolvers<void>();
-      let crawls = 0;
-      let aggregates = 0;
-      const running = runScheduler({
-        db,
-        clock,
-        signal: stop.signal,
-        log: (message) => {
-          if (message === "Riot crawl stopped until restart") {
-            stoppedCrawl.resolve();
-          }
-        },
-        jobs: {
-          patch: () => Promise.resolve(),
-          retention: () => Promise.resolve(),
-          aggregate: () => {
-            aggregates += 1;
-            if (aggregates === 2) {
-              secondAggregate.resolve();
-            }
-            return Promise.resolve();
-          },
-        },
-        riot: {
-          seed: () => Promise.resolve(),
-          crawl: () => {
-            crawls += 1;
-            return Promise.reject(new RiotAuthError(403));
-          },
-        },
-      });
-      try {
-        await stoppedCrawl.promise;
-        await clock.pending(30 * MINUTE);
-        clock.advanceTo(30 * MINUTE);
-        await secondAggregate.promise;
-        expect(aggregates).toBe(2);
-        expect(crawls).toBe(1);
-        expect(await db.select().from(collectorState)).toMatchObject([
-          { lastError: "Riot API authentication failed (HTTP 403)" },
-        ]);
-      } finally {
-        stop.abort();
-        await running;
-      }
-    });
+function* advanceDays(clock: SchedulerClock) {
+  for (let at = 30 * MINUTE; at <= 2 * DAY; at += 30 * MINUTE) {
+    clock.advanceTo(at);
+    yield drainTurn();
   }
-);
+}
+
+for (const mode of ["healthy", 401, 403, "pending"] as const) {
+  test.skipIf(!process.env.DATABASE_URL)(
+    `daily seed runs at hours 0, 24, and 48 when crawl is ${mode}`,
+    async () => {
+      await withTestDatabase(async (db) => {
+        const clock = new SchedulerClock();
+        const stop = new AbortController();
+        const stoppedCrawl = Promise.withResolvers<void>();
+        const heldCrawl = Promise.withResolvers<boolean>();
+        const starts: number[] = [];
+        const auth = mode === 401 || mode === 403;
+        let crawls = 0;
+        let aggregates = 0;
+        const running = runScheduler({
+          db,
+          clock,
+          signal: stop.signal,
+          log: (message) => {
+            if (message === "Riot crawl stopped until restart") {
+              stoppedCrawl.resolve();
+            }
+          },
+          jobs: {
+            patch: () => Promise.resolve(),
+            retention: () => Promise.resolve(),
+            aggregate: () => {
+              aggregates += 1;
+              return Promise.resolve();
+            },
+          },
+          riot: {
+            seed: () => {
+              starts.push(clock.now());
+              return Promise.resolve();
+            },
+            crawl: () => {
+              crawls += 1;
+              if (auth) {
+                return Promise.reject(new RiotAuthError(mode));
+              }
+              return mode === "pending"
+                ? heldCrawl.promise
+                : Promise.resolve(false);
+            },
+          },
+        });
+        try {
+          await clock.pending(30 * MINUTE);
+          if (auth) {
+            await stoppedCrawl.promise;
+          }
+          if (mode === "healthy") {
+            await clock.pending(1000);
+          }
+          for await (const _ of advanceDays(clock)) {
+            // Let each set of due jobs finish before moving to the next deadline.
+          }
+          expect(starts).toEqual([0, DAY, 2 * DAY]);
+          expect(aggregates).toBe(97);
+          expect(crawls).toBe(mode === "healthy" ? 97 : 1);
+          if (auth) {
+            expect(await db.select().from(collectorState)).toMatchObject([
+              {
+                lastError: `Riot API authentication failed (HTTP ${mode})`,
+                lastErrorAt: new Date(0),
+              },
+            ]);
+          }
+        } finally {
+          stop.abort();
+          heldCrawl.resolve(false);
+          await running;
+        }
+      });
+    }
+  );
+}
