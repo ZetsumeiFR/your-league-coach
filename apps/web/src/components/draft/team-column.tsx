@@ -22,20 +22,19 @@ import type { ChampionCard } from "@/lib/ddragon";
 import { ROLE_ICONS } from "./role-icons";
 
 export interface TeamRow {
+  /** A passing state of the member, such as hovering a champion. */
   badge: string | null;
   champion: ChampionCard | null;
   detail: string | null;
   /** Read aloud in place of `detail` when its notation means nothing spoken ("~Mid"). */
   detailLabel: string | null;
   id: number;
-  isHovering: boolean;
   isLocal: boolean;
   role: Role | null;
   title: string;
 }
 
 export interface TeamBan {
-  champion: ChampionCard | null;
   id: number;
   name: string;
 }
@@ -53,10 +52,7 @@ function TeamMember({ row }: { row: TeamRow }) {
   return (
     <Item size="xs" variant={row.isLocal ? "muted" : "default"}>
       <ItemMedia>
-        <ChampionAvatar
-          champion={row.champion}
-          className={row.isHovering ? "opacity-60" : undefined}
-        />
+        <ChampionAvatar champion={row.champion} />
       </ItemMedia>
       <ItemContent>
         <ItemTitle>{row.title}</ItemTitle>
@@ -70,7 +66,7 @@ function TeamMember({ row }: { row: TeamRow }) {
         ) : null}
       </ItemContent>
       <ItemActions>
-        {row.badge ? <Badge variant="outline">{row.badge}</Badge> : null}
+        {row.badge ? <Badge variant="info-light">{row.badge}</Badge> : null}
         {RoleIcon ? (
           <RoleIcon className="size-4 text-muted-foreground" />
         ) : null}
@@ -95,14 +91,7 @@ function TeamBans({ bans }: { bans: TeamBan[] }) {
           >
             {bans.map((ban) => (
               <li key={ban.id}>
-                <Badge variant="outline">
-                  <ChampionAvatar
-                    champion={ban.champion}
-                    className="size-3.5"
-                    withLetters={false}
-                  />
-                  {ban.name}
-                </Badge>
+                <Badge variant="outline">{ban.name}</Badge>
               </li>
             ))}
           </ul>

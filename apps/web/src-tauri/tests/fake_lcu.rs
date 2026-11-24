@@ -7,7 +7,7 @@ use std::{
 use app_lib::lcu::{
     Error, Notification, Phase, State, Supervisor,
     client::{pinned_http, pinned_tls_from},
-    snapshot::ChampSelectSnapshot,
+    snapshot::{ActionType, ChampSelectSnapshot},
 };
 use app_lib::live;
 use tempfile::TempDir;
@@ -350,8 +350,28 @@ async fn real_supervisor_replays_draft_reconnects_and_rejects_wrong_ca() {
         supervisor.status(State::Searching).await;
         supervisor.status(State::Connected).await;
         replay(fake.replay_url("champ-select-ranked"), &ca).await;
-        let snapshots = [supervisor.snapshot().await, supervisor.snapshot().await];
-        assert!(snapshots.iter().all(|snapshot| snapshot.queue_id == 420));
+        // One draft: the local ban turn, picks under way, the enemy lane pick, then the local hover and lock.
+        let stages = [
+            supervisor.snapshot().await,
+            supervisor.snapshot().await,
+            supervisor.snapshot().await,
+            supervisor.snapshot().await,
+            supervisor.snapshot().await,
+        ];
+        assert!(stages.iter().all(|snapshot| snapshot.queue_id == 420));
+        assert_eq!(
+            stages.each_ref().map(|snapshot| (snapshot.current_action, snapshot.is_local_players_turn)),
+            [(ActionType::Ban, true), (ActionType::Pick, false), (ActionType::Pick, false), (ActionType::Pick, true), (ActionType::None, false)]
+        );
+        assert_eq!(
+            stages.each_ref().map(|snapshot| snapshot.their_team.iter().filter(|enemy| enemy.champion_id != 0).count()),
+            [0, 2, 3, 5, 5]
+        );
+        let [ban_turn, _, lane_pick, hover, lock] = stages;
+        assert_eq!(ban_turn.bans.my_team_bans, [157]);
+        assert!(ban_turn.bans.their_team_bans.is_empty());
+        assert!(lane_pick.their_team.iter().any(|enemy| enemy.champion_id == 238));
+        let snapshots = [hover, lock];
         assert!(snapshots.iter().all(|snapshot| snapshot.local_pick.champion_id == 103));
         assert!(snapshots.iter().all(|snapshot| snapshot.bans.their_team_bans == [55, 7]));
         assert_eq!(snapshots.map(|snapshot| snapshot.local_pick.completed), [false, true]);
@@ -360,13 +380,13 @@ async fn real_supervisor_replays_draft_reconnects_and_rejects_wrong_ca() {
         replay(fake.replay_url("champ-select-aram"), &ca).await;
         let aram = supervisor.snapshot().await;
         assert_eq!((aram.queue_id, aram.local_pick.champion_id, aram.local_pick.completed), (450, 22, true));
-        // After observing hover, kill the server before the delayed lock frame.
+        // After observing the first draft frame (the ban turn), kill the server before the delayed rest.
         let ca_for_replay = ca.clone();
         let url = format!("{}&delayMs=2000", fake.replay_url("champ-select-ranked"));
         let mut interrupted = JoinSet::new();
         interrupted.spawn(async move { replay(url, &ca_for_replay).await });
-        let hover = supervisor.snapshot().await;
-        assert_eq!((hover.queue_id, hover.local_pick.completed), (420, false));
+        let first = supervisor.snapshot().await;
+        assert_eq!((first.queue_id, first.current_action), (420, ActionType::Ban));
         interrupted.abort_all();
         fake.stop().await;
         // Killing mid-replay may emit a transport diagnostic before disconnect.
@@ -377,7 +397,7 @@ async fn real_supervisor_replays_draft_reconnects_and_rejects_wrong_ca() {
                     assert_eq!(status.state, State::Disconnected);
                     break;
                 }
-                _ => panic!("expected disconnect without the locked snapshot"),
+                _ => panic!("expected disconnect without a later snapshot"),
             }
         }
         supervisor.status(State::Searching).await;

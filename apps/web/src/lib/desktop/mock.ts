@@ -60,6 +60,8 @@ export interface YlcMock {
    * Replays a fake Riot client scenario ("champ-select-ranked",
    * "champ-select-aram", "champ-select-arena", "live-game",
    * "live-game-armored", "live-game-ended"), connecting the client first.
+   * The stages of a draft are sent `DRAFT_STAGE_MS` apart; the promise settles
+   * once the last one is sent.
    */
   replay: (scenario: string) => Promise<void>;
 }
@@ -72,6 +74,17 @@ declare global {
 
 const STORAGE_PREFIX = "ylc-mock-store:";
 const CHAMPION_SLUG = /^[a-z0-9]{1,64}$/i;
+/**
+ * Time between two stages of a replayed draft: what the screen is given to
+ * follow a client event. Sent in one burst, only the last stage would be drawn,
+ * because the screen asks for suggestions once the draft has stopped changing.
+ */
+const DRAFT_STAGE_MS = 2000;
+
+const pause = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 const teamPlayerSchema = z.object({
   championId: z.number(),
@@ -230,8 +243,7 @@ export const installDesktopMock = () => {
     }
   };
 
-  const applyFrame = async (text: string) => {
-    const [, , { data, uri }] = wampFrameSchema.parse(JSON.parse(text));
+  const applyEvent = async (uri: string, data: unknown) => {
     if (uri === phasePath) {
       await applyPhase(phaseSchema.parse(data));
     } else if (uri === flowPath) {
@@ -249,11 +261,20 @@ export const installDesktopMock = () => {
     }
   };
 
-  const applyFrames = async ([frame, ...later]: string[]): Promise<void> => {
-    if (frame !== undefined) {
-      await applyFrame(frame);
-      await applyFrames(later);
+  const applyFrames = async (
+    [frame, ...later]: string[],
+    followsDraft = false
+  ): Promise<void> => {
+    if (frame === undefined) {
+      return;
     }
+    const [, , { data, uri }] = wampFrameSchema.parse(JSON.parse(frame));
+    const isDraft = uri === draftPath;
+    if (isDraft && followsDraft) {
+      await pause(DRAFT_STAGE_MS);
+    }
+    await applyEvent(uri, data);
+    await applyFrames(later, followsDraft || isDraft);
   };
 
   const replay: YlcMock["replay"] = async (scenario) => {

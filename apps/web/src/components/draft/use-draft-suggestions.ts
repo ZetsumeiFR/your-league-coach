@@ -11,6 +11,7 @@ import type {
 import { useCallback, useMemo, useState } from "react";
 
 import { desktop } from "@/lib/desktop/events";
+import { useDesktop } from "@/lib/desktop/store";
 import {
   assignedRole,
   parseSuggestionRequest,
@@ -33,6 +34,8 @@ import {
 const DRAFT_DEBOUNCE_MS = 300;
 /** Same draft, same answer until the server aggregates again: no refetch each time the window regains focus. */
 const SUGGESTIONS_FRESH_FOR_MS = 5 * 60_000;
+/** Longer than any champion select: its pool is still held when the screen is left and opened again during it. */
+const POOL_KEPT_FOR_MS = 30 * 60_000;
 
 const NO_POOL: PlayerPoolEntry[] = [];
 const NO_ENEMY_ROLES: EnemyRole[] = [];
@@ -67,13 +70,15 @@ export interface DraftSuggestions {
 }
 
 /**
- * Mastery and recent games, read once per visit of the draft screen: kept as
- * long as the screen shows a draft, read again for the next one. A failed
- * read leaves the pool empty instead of holding the suggestions back.
+ * Mastery and recent games, read once per champion select: leaving the draft
+ * screen and opening it again during the same one reads nothing, the next
+ * champion select reads them anew. A failed read leaves the pool empty
+ * instead of holding the suggestions back.
  */
 const usePlayerPool = () => {
+  const { champSelectSession } = useDesktop();
   const query = useQuery({
-    queryKey: ["desktop", "player-pool"],
+    queryKey: ["desktop", "player-pool", champSelectSession],
     queryFn: async () => {
       const [mastery, recent] = await Promise.all([
         desktop.championMastery(),
@@ -82,7 +87,7 @@ const usePlayerPool = () => {
       return playerPool(mastery, recent);
     },
     staleTime: Number.POSITIVE_INFINITY,
-    gcTime: 0,
+    gcTime: POOL_KEPT_FOR_MS,
     retry: false,
   });
   return { entries: query.data ?? NO_POOL, isSettled: !query.isPending };

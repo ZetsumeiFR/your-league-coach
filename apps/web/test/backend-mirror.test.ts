@@ -37,13 +37,39 @@ const rankedDraftSessions = () =>
     .map(({ data }) => data);
 
 describe("mocked champ select snapshot", () => {
-  const [hovering, locked] = rankedDraftSessions().map((session) =>
+  const drafts = rankedDraftSessions().map((session) =>
     normalizeDraft(session, RANKED_QUEUE, [...rankedPickableChampionIds])
   );
+  const [banTurn, midPick, lanePick, hovering, locked] = drafts;
+  const revealedEnemies = (draft: (typeof drafts)[number] | undefined) =>
+    draft?.theirTeam
+      .map(({ championId }) => championId)
+      .filter((championId) => championId !== 0);
 
   it("carries none of the names the client fixture holds", () => {
-    expect(JSON.stringify(rankedDraftSessions())).toContain(sentinel);
-    expect(JSON.stringify([hovering, locked])).not.toContain(sentinel);
+    for (const session of rankedDraftSessions()) {
+      expect(JSON.stringify(session)).toContain(sentinel);
+    }
+    expect(JSON.stringify(drafts)).not.toContain(sentinel);
+  });
+
+  it("walks one draft from the local ban turn to the lock", () => {
+    expect(
+      drafts.map(({ currentAction, isLocalPlayersTurn }) => [
+        currentAction,
+        isLocalPlayersTurn,
+      ])
+    ).toEqual([
+      ["ban", true],
+      ["pick", false],
+      ["pick", false],
+      ["pick", true],
+      ["none", false],
+    ]);
+    expect(banTurn?.bans).toEqual({ myTeamBans: [157], theirTeamBans: [] });
+    expect(revealedEnemies(banTurn)).toEqual([]);
+    expect(revealedEnemies(midPick)).toEqual([122, 121]);
+    expect(revealedEnemies(lanePick)).toEqual([122, 121, 238]);
   });
 
   it("keeps only the fields of the backend snapshot", () => {

@@ -92,11 +92,10 @@ function PanelNotice({
 function SuggestionPlaceholder({ kind }: { kind: SuggestionKind }) {
   const ids = PLACEHOLDER_IDS.slice(0, PLACEHOLDER_ROWS[kind]);
 
-  // The app's reduced-motion rule shortens every animation to 1 ms: a pulse left running would flicker.
   return ids.map((id, index) => (
-    <li className="motion-reduce:**:data-[slot=skeleton]:animate-none" key={id}>
+    <li key={id}>
       <div className="flex min-h-12 items-center gap-2">
-        <Skeleton className="size-8 rounded-full" />
+        <Skeleton className="size-8" />
         <Skeleton className="h-4 w-28" />
         <Skeleton className="ms-auto h-4 w-24" />
       </div>
@@ -126,8 +125,7 @@ function SuggestionFailure({
     <Alert variant="destructive">
       <appIcons.error />
       <AlertTitle>{t("draft.suggestions.error.title")}</AlertTitle>
-      {/* The muted gray of the description falls under 4.5:1 on the tinted surface of this variant. */}
-      <AlertDescription className="text-foreground/80">
+      <AlertDescription>
         <p>{t(`draft.suggestions.error.${failure}`)}</p>
       </AlertDescription>
       <AlertAction>

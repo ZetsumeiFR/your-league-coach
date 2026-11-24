@@ -122,22 +122,26 @@ export function SuggestionRow({
             >
               {detail}
             </TooltipTrigger>
-            <TooltipContent className="flex flex-col items-stretch gap-1.5 py-2">
-              {components ? (
-                <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5">
-                  {SCORE_COMPONENTS.map((component) => (
-                    <div className="contents" key={component}>
-                      <dt>{t(`draft.suggestions.components.${component}`)}</dt>
-                      <dd className="text-end tabular-nums">
-                        {formatPoints(language, components[component])}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
-              {hidden.length > 0 ? (
-                <p>{hidden.map(textOf).join(" \u00b7 ")}</p>
-              ) : null}
+            <TooltipContent>
+              <div className="flex flex-col gap-1.5">
+                {components ? (
+                  <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5">
+                    {SCORE_COMPONENTS.map((component) => (
+                      <div className="contents" key={component}>
+                        <dt>
+                          {t(`draft.suggestions.components.${component}`)}
+                        </dt>
+                        <dd className="text-end tabular-nums">
+                          {formatPoints(language, components[component])}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+                {hidden.length > 0 ? (
+                  <p>{hidden.map(textOf).join(" \u00b7 ")}</p>
+                ) : null}
+              </div>
             </TooltipContent>
           </Tooltip>
         ) : (

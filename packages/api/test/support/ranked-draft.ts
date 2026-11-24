@@ -11,6 +11,7 @@ const FIXTURE = new URL(
 );
 const DRAFT_URI = "/lol-champ-select/v1/session";
 const LINE_BREAK = /\r?\n/u;
+const HOVER_AND_LOCK = 2;
 
 const sessionSchema = z.object({
   localPlayerCellId: z.number().int(),
@@ -52,10 +53,10 @@ const actionType = (type: string | undefined): DraftState["currentAction"] =>
 const noChampion = (id: number): number => Math.max(id, 0);
 const banned = (ids: readonly number[]): number[] => ids.filter((id) => id > 0);
 
-/** Draft sessions of the ranked fixture, in replay order (hover, then lock), as the desktop app normalizes them. */
+/** The two draft sessions the ranked fixture ends on, the local hover then the lock, as the desktop app normalizes them. */
 export async function rankedDrafts(): Promise<DraftState[]> {
   const lines = (await file(FIXTURE).text()).trim().split(LINE_BREAK);
-  return lines.flatMap((line) => {
+  const drafts = lines.flatMap((line): DraftState[] => {
     const [, , event] = frameSchema.parse(JSON.parse(line));
     if (event.uri !== DRAFT_URI) {
       return [];
@@ -97,6 +98,7 @@ export async function rankedDrafts(): Promise<DraftState[]> {
       },
     ];
   });
+  return drafts.slice(-HOVER_AND_LOCK);
 }
 
 export const revealOnly = (

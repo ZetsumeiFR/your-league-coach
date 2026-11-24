@@ -31,12 +31,15 @@ const rankedJsonl = await file(
   )
 ).text();
 
-const [hovering, locked] = (scenarioFrames(rankedScenario, rankedJsonl) ?? [])
+const rankedDrafts = (scenarioFrames(rankedScenario, rankedJsonl) ?? [])
   .map((text) => wampFrameSchema.parse(JSON.parse(text))[2])
   .filter(({ uri }) => uri === draftPath)
-  .map(({ data }) =>
-    normalizeDraft(data, 420, [...rankedPickableChampionIds])
-  ) as [DraftState, DraftState];
+  .map(({ data }) => normalizeDraft(data, 420, [...rankedPickableChampionIds]));
+// The scenario ends on the local hover, then the lock.
+const [hovering, locked] = rankedDrafts.slice(-2);
+if (!(hovering && locked)) {
+  throw new Error("The ranked scenario must end on a hover and a lock");
+}
 
 const withLocal = (
   draft: DraftState,
@@ -171,6 +174,19 @@ describe("draft reading", () => {
         suggestionKind({ ...hovering, currentAction, isLocalPlayersTurn })
       ).toBe(kind);
     }
+  });
+
+  it("reads the ranked scenario as a ban turn, then picks, each stage its own request", () => {
+    expect(rankedDrafts.map(suggestionKind)).toEqual([
+      "ban",
+      "pick",
+      "pick",
+      "pick",
+      "pick",
+    ]);
+    expect(new Set(rankedDrafts.map(suggestionRequestKey)).size).toBe(
+      rankedDrafts.length
+    );
   });
 
   it("takes the role the client assigned to the local player", () => {

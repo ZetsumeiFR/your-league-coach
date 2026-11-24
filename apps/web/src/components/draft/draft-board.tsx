@@ -59,7 +59,6 @@ const allyRows = (
     return {
       id: member.cellId,
       isLocal,
-      isHovering,
       role,
       champion: championId === 0 ? null : findChampion(championId),
       title: championId === 0 ? who : nameOf(championId),
@@ -82,7 +81,6 @@ const enemyRows = (
     const row = {
       id: cellId,
       isLocal: false,
-      isHovering: false,
       badge: null,
     };
     if (championId === 0) {
@@ -118,7 +116,6 @@ const banChips = (
   const nameOf = championNamer(findChampion, t);
   return championIds.map((championId) => ({
     id: championId,
-    champion: findChampion(championId),
     name: nameOf(championId),
   }));
 };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { DraftState } from "@your-league-coach/lol-data/types";
 
-import type { GameflowPhase } from "../src/lib/desktop/events";
+import type { GameflowPhase, LcuState } from "../src/lib/desktop/events";
 import {
   initialDesktopState,
   reduceDesktopState,
@@ -26,6 +26,10 @@ const phase = (value: GameflowPhase): Action => ({
   payload: { phase: value },
 });
 const snapshot: Action = { name: "lcu://champ-select", payload: draft };
+const client = (state: LcuState): Action => ({
+  name: "lcu://status",
+  payload: { state },
+});
 
 const after = (...actions: Action[]) =>
   actions.reduce(reduceDesktopState, initialDesktopState);
@@ -70,7 +74,7 @@ describe("champion select snapshot", () => {
     expect(requeued.champSelect).toBeNull();
   });
 
-  it("is dropped when it arrives late, once that game is over", () => {
+  it("is dropped at the end of the game even when it only arrived during the game", () => {
     const lobby = after(
       phase("ChampSelect"),
       phase("InProgress"),
@@ -82,5 +86,49 @@ describe("champion select snapshot", () => {
 
   it("tells the phase when none was reported yet", () => {
     expect(after(snapshot).phase).toBe("ChampSelect");
+  });
+});
+
+describe("champion select session", () => {
+  const sessionAfter = (...actions: Action[]) =>
+    after(...actions).champSelectSession;
+  const firstSelect = [phase("ChampSelect"), snapshot];
+
+  it("keeps its number from the first snapshot to the end of the game", () => {
+    expect(
+      sessionAfter(
+        ...firstSelect,
+        snapshot,
+        phase("GameStart"),
+        phase("InProgress"),
+        snapshot
+      )
+    ).toBe(sessionAfter(...firstSelect));
+  });
+
+  it("gets a new number for the next champion select, after a game, a dodge or a lost client", () => {
+    const first = sessionAfter(...firstSelect);
+    const afterGame = sessionAfter(
+      ...firstSelect,
+      phase("InProgress"),
+      phase("EndOfGame"),
+      phase("ChampSelect"),
+      snapshot
+    );
+    const afterDodge = sessionAfter(
+      ...firstSelect,
+      phase("Matchmaking"),
+      phase("ChampSelect"),
+      snapshot
+    );
+    const afterLostClient = sessionAfter(
+      ...firstSelect,
+      client("disconnected"),
+      client("connected"),
+      snapshot
+    );
+    for (const next of [afterGame, afterDodge, afterLostClient]) {
+      expect(next).not.toBe(first);
+    }
   });
 });
