@@ -4,10 +4,12 @@ import {
 } from "@your-league-coach/lol-data/roles";
 import type { DraftState } from "@your-league-coach/lol-data/types";
 
+import { BuildPanel } from "@/components/build/build-panel";
 import { appIcons } from "@/components/icons";
 import { IdleState } from "@/components/idle-state";
 import type { Translate } from "@/i18n/translate";
 import { useT } from "@/i18n/use-t";
+import { buildChampionId } from "@/lib/build/request";
 import { type FindChampion, useChampionLookup } from "@/lib/ddragon";
 import { pickRole, usePickedRole } from "@/lib/draft/picked-role";
 import { assignedRole, draftMode } from "@/lib/draft/request";
@@ -174,12 +176,18 @@ function AramBoard({ draft }: { draft: DraftState }) {
 
   return (
     <div className="@container" data-slot="draft-board">
-      <div className="grid @2xl:grid-cols-[minmax(0,1fr)_16rem] items-start gap-4">
-        <IdleState
-          description={t("draft.aram.description")}
-          icon={appIcons.build}
-          title={t("draft.aram.title")}
-        />
+      <div className="grid @4xl:grid-cols-[minmax(0,1fr)_16rem] items-start gap-4">
+        <div className="min-w-0">
+          {buildChampionId(draft) === 0 ? (
+            <IdleState
+              description={t("draft.aram.description")}
+              icon={appIcons.build}
+              title={t("draft.aram.title")}
+            />
+          ) : (
+            <BuildPanel draft={draft} />
+          )}
+        </div>
         <TeamColumn
           className="min-w-0"
           rows={allyRows(draft, findChampion, t)}

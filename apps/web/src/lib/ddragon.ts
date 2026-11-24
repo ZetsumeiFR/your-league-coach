@@ -2,8 +2,14 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import {
   championIconUrl,
   fetchChampions,
+  fetchItems,
+  fetchRunes,
+  fetchSummonerSpells,
   fetchVersions,
+  itemIconUrl,
   type Locale,
+  runeIconUrl,
+  spellIconUrl,
 } from "@your-league-coach/lol-data/ddragon";
 import { useEffect, useMemo, useRef } from "react";
 import { ddragonLocale } from "@/i18n/translate";
@@ -29,6 +35,9 @@ const ddragonQuery =
     });
 
 export const championsQuery = ddragonQuery("champions", fetchChampions);
+const itemsQuery = ddragonQuery("items", fetchItems);
+const runesQuery = ddragonQuery("runes", fetchRunes);
+const spellsQuery = ddragonQuery("spells", fetchSummonerSpells);
 
 /**
  * The version the server's statistics use. Without an answer from the server
@@ -51,24 +60,35 @@ export const useDdragonVersion = (): string | null => {
   return serverVersion ?? latest.data ?? null;
 };
 
-const useChampions = () => {
+/** One resource, in the version the statistics use and the app's language. */
+const useStaticData = <Data>(query: ReturnType<typeof ddragonQuery<Data>>) => {
   const version = useDdragonVersion();
   const locale = ddragonLocale(useLanguage());
   const { data } = useQuery({
-    ...championsQuery(version ?? "", locale),
+    ...query(version ?? "", locale),
     enabled: version !== null,
   });
+  return { data, version };
+};
+
+const useChampions = () => {
+  const { data, version } = useStaticData(championsQuery);
   return { champions: data, version };
 };
 
-/** What a screen shows of a champion: its name in the app's language and its icon. */
-export interface ChampionCard {
+/**
+ * What a screen shows of a champion, an item, a rune or a summoner spell: its
+ * name in the app's language and its icon.
+ */
+export interface AssetCard {
   iconUrl: string;
   name: string;
 }
-export type FindChampion = (championId: number) => ChampionCard | null;
-
 /** Null for an id Data Dragon does not know, and for every id until it has answered. */
+export type FindAsset = (id: number) => AssetCard | null;
+export type ChampionCard = AssetCard;
+export type FindChampion = FindAsset;
+
 export const useChampionLookup = (): FindChampion => {
   const { champions, version } = useChampions();
   return useMemo(() => {
@@ -80,6 +100,50 @@ export const useChampionLookup = (): FindChampion => {
     );
     return (championId) => cards.get(championId) ?? null;
   }, [champions, version]);
+};
+
+export const useItemLookup = (): FindAsset => {
+  const { data: items, version } = useStaticData(itemsQuery);
+  return useMemo(() => {
+    const cards = new Map(
+      (items ?? []).map(({ id, name }) => [
+        id,
+        { name, iconUrl: itemIconUrl(version ?? "", id) },
+      ])
+    );
+    return (itemId) => cards.get(itemId) ?? null;
+  }, [items, version]);
+};
+
+export const useSpellLookup = (): FindAsset => {
+  const { data: spells, version } = useStaticData(spellsQuery);
+  return useMemo(() => {
+    const cards = new Map(
+      (spells ?? []).map(({ id, key, name }) => [
+        key,
+        { name, iconUrl: spellIconUrl(version ?? "", id) },
+      ])
+    );
+    return (spellId) => cards.get(spellId) ?? null;
+  }, [spells, version]);
+};
+
+/** Runes and rune trees share one range of ids, so one lookup finds both. */
+export const useRuneLookup = (): FindAsset => {
+  const { data: trees } = useStaticData(runesQuery);
+  return useMemo(() => {
+    const cards = new Map<number, AssetCard>();
+    for (const tree of trees ?? []) {
+      cards.set(tree.id, { name: tree.name, iconUrl: runeIconUrl(tree.icon) });
+      for (const rune of tree.slots.flatMap((slot) => slot.runes)) {
+        cards.set(rune.id, {
+          name: rune.name,
+          iconUrl: runeIconUrl(rune.icon),
+        });
+      }
+    }
+    return (runeId) => cards.get(runeId) ?? null;
+  }, [trees]);
 };
 
 /**

@@ -12,6 +12,7 @@ import { TooltipProvider } from "@your-league-coach/ui/components/tooltip";
 import { useEffect, useRef } from "react";
 
 import { AppLayout } from "@/components/app-layout";
+import { AutoImport } from "@/components/build/auto-import";
 import { SettingsGate } from "@/components/settings-gate";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useLanguage } from "@/i18n/use-t";
@@ -72,6 +73,7 @@ function RootComponent() {
           <SettingsGate>
             <DesktopProvider>
               <DesktopEffects />
+              <AutoImport />
               <AppLayout>
                 <Outlet />
               </AppLayout>

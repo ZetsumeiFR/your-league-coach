@@ -2,10 +2,6 @@ import { Link } from "@tanstack/react-router";
 import type { Role } from "@your-league-coach/lol-data/roles";
 import { CapitalInflowTabs } from "@your-league-coach/ui/components/blocks/list-3/components/capital-inflow-tabs";
 import {
-  Button,
-  buttonVariants,
-} from "@your-league-coach/ui/components/button";
-import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -13,27 +9,22 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@your-league-coach/ui/components/empty";
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@your-league-coach/ui/components/reui/alert";
 import { Badge } from "@your-league-coach/ui/components/reui/badge";
 import { Separator } from "@your-league-coach/ui/components/separator";
 import { Skeleton } from "@your-league-coach/ui/components/skeleton";
-import { cn } from "@your-league-coach/ui/lib/utils";
 import type { ComponentProps, ComponentType, ReactNode } from "react";
 
-import { ButtonIcon } from "@/components/button-icon";
 import { appIcons } from "@/components/icons";
+import {
+  SETTINGS_LINK,
+  ServerFailureAlert,
+} from "@/components/server-failure-alert";
 import { formatNumber } from "@/i18n/format";
 import type { TranslationKey } from "@/i18n/translate";
 import { useLanguage, useT } from "@/i18n/use-t";
 import type { FindChampion } from "@/lib/ddragon";
 import type { SuggestionKind } from "@/lib/draft/request";
 import { FULL_SCORE_POINTS } from "@/lib/draft/score";
-import type { ServerFailure } from "@/utils/orpc";
 
 import { RoleBadge, RolePicker } from "./role-picker";
 import { SuggestionRow } from "./suggestion-row";
@@ -56,9 +47,6 @@ const KIND_TEXTS = {
 /** Rows the placeholder holds while a list loads: the most the server returns. */
 const PLACEHOLDER_ROWS = { ban: 5, pick: 10 } as const;
 const PLACEHOLDER_IDS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-
-/** Merged, so the variant's border wins over the transparent one of the base classes. */
-const SETTINGS_LINK = cn(buttonVariants({ size: "sm", variant: "outline" }));
 
 type PanelList = ComponentProps<typeof CapitalInflowTabs>["list"];
 
@@ -106,51 +94,6 @@ function SuggestionPlaceholder({ kind }: { kind: SuggestionKind }) {
       {index < ids.length - 1 ? <Separator /> : null}
     </li>
   ));
-}
-
-interface SuggestionFailureProps {
-  failure: ServerFailure;
-  isRetrying: boolean;
-  retry: () => void;
-}
-
-function SuggestionFailure({
-  failure,
-  isRetrying,
-  retry,
-}: SuggestionFailureProps) {
-  const t = useT();
-
-  return (
-    <Alert variant="destructive">
-      <appIcons.error />
-      <AlertTitle>{t("draft.suggestions.error.title")}</AlertTitle>
-      <AlertDescription>
-        <p>{t(`draft.suggestions.error.${failure}`)}</p>
-      </AlertDescription>
-      <AlertAction>
-        {failure === "unauthorized" ? (
-          <Link className={SETTINGS_LINK} to="/settings">
-            {t("draft.suggestions.error.openSettings")}
-          </Link>
-        ) : (
-          <Button
-            aria-busy={isRetrying}
-            disabled={isRetrying}
-            onClick={retry}
-            size="sm"
-            variant="outline"
-          >
-            <ButtonIcon
-              className={isRetrying ? "animate-spin" : undefined}
-              icon={isRetrying ? appIcons.loading : appIcons.refresh}
-            />
-            {t("draft.suggestions.error.retry")}
-          </Button>
-        )}
-      </AlertAction>
-    </Alert>
-  );
 }
 
 function BlendNote({ result }: { result: SuggestionsResult }) {
@@ -254,10 +197,11 @@ export function SuggestionList({
     case "failed":
       return panel({
         body: (
-          <SuggestionFailure
+          <ServerFailureAlert
             failure={state.failure}
             isRetrying={state.isRetrying}
             retry={state.retry}
+            title={t("draft.suggestions.error.title")}
           />
         ),
       });

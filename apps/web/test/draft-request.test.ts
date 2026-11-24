@@ -4,15 +4,8 @@ import {
   draftInputSchema,
   draftStateSchema,
 } from "@your-league-coach/lol-data/types";
-import { file } from "bun";
 
 import { sentinel } from "../../../scripts/fake-riot-client/fixtures/lcu/accounts";
-import {
-  draftPath,
-  rankedPickableChampionIds,
-  rankedScenario,
-  scenarioFrames,
-} from "../../../scripts/fake-riot-client/fixtures/lcu/scenarios";
 import {
   assignedRole,
   draftMode,
@@ -22,36 +15,12 @@ import {
   suggestionKind,
   suggestionRequestKey,
 } from "../src/lib/draft/request";
-import { normalizeDraft, wampFrameSchema } from "./support/backend-mirror";
-
-const rankedJsonl = await file(
-  new URL(
-    "../../../scripts/fake-riot-client/fixtures/lcu/champ-select-ranked.jsonl",
-    import.meta.url
-  )
-).text();
-
-const rankedDrafts = (scenarioFrames(rankedScenario, rankedJsonl) ?? [])
-  .map((text) => wampFrameSchema.parse(JSON.parse(text))[2])
-  .filter(({ uri }) => uri === draftPath)
-  .map(({ data }) => normalizeDraft(data, 420, [...rankedPickableChampionIds]));
-// The scenario ends on the local hover, then the lock.
-const [hovering, locked] = rankedDrafts.slice(-2);
-if (!(hovering && locked)) {
-  throw new Error("The ranked scenario must end on a hover and a lock");
-}
-
-const withLocal = (
-  draft: DraftState,
-  change: Partial<DraftState["myTeam"][number]>
-): DraftState => ({
-  ...draft,
-  myTeam: draft.myTeam.map((member) =>
-    member.cellId === draft.localPlayerCellId
-      ? { ...member, ...change }
-      : member
-  ),
-});
+import {
+  hovering,
+  locked,
+  rankedDrafts,
+  withLocal,
+} from "./support/ranked-drafts";
 
 describe("suggestion request key", () => {
   const key = suggestionRequestKey(hovering);

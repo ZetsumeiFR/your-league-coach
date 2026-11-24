@@ -4,6 +4,7 @@ pub mod discovery;
 mod events;
 pub mod snapshot;
 mod tls;
+pub mod write;
 
 use std::{path::PathBuf, time::Duration};
 
@@ -48,6 +49,17 @@ pub enum Error {
     Queue,
     #[error("LCU disconnected")]
     Disconnected,
+    /// Every rune page slot holds a page the app did not create. The frontend
+    /// matches this exact text.
+    #[error("NO_FREE_PAGE")]
+    NoFreePage,
+    /// The client's answer to a new rune page does not name a page that is new.
+    #[error("LCU did not confirm the new rune page")]
+    UnconfirmedPage,
+    #[error("ownership record unavailable")]
+    Store,
+    #[error("invalid import request")]
+    Input,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]

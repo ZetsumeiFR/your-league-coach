@@ -18,6 +18,10 @@ import {
 } from "../../../../../scripts/fake-riot-client/fixtures/lcu/accounts";
 import rankedJsonl from "../../../../../scripts/fake-riot-client/fixtures/lcu/champ-select-ranked.jsonl?raw";
 import {
+  runeInventory,
+  runePages,
+} from "../../../../../scripts/fake-riot-client/fixtures/lcu/loadouts";
+import {
   draftPath,
   flowPath,
   liveArmorScenario,
@@ -43,6 +47,7 @@ import {
   GAMEFLOW_PHASES,
   type GameflowPhase,
   type LcuState,
+  NO_FREE_PAGE,
 } from "./events";
 
 export interface YlcMock {
@@ -57,6 +62,11 @@ export interface YlcMock {
     payload: DesktopEvents[Name]
   ) => Promise<void>;
   /**
+   * Commands named here fail with the given text, as the backend does when the
+   * client refuses a request.
+   */
+  failures: Partial<Record<DesktopCommandName, string>>;
+  /**
    * Replays a fake Riot client scenario ("champ-select-ranked",
    * "champ-select-aram", "champ-select-arena", "live-game",
    * "live-game-armored", "live-game-ended"), connecting the client first.
@@ -64,6 +74,11 @@ export interface YlcMock {
    * once the last one is sent.
    */
   replay: (scenario: string) => Promise<void>;
+  /**
+   * Rune page slots of the fake client. The fixture holds two player pages in
+   * three slots; with 2, a rune import finds no free page.
+   */
+  runePageSlots: number;
 }
 
 declare global {
@@ -133,6 +148,29 @@ const catalogSchema = z
     const slugs = Object.keys(championIds).map((slug) => slug.toLowerCase());
     return new Set(slugs).size === slugs.length;
   });
+
+const runePageSchema = z.object({
+  name: z.string(),
+  primaryStyleId: z.number(),
+  subStyleId: z.number(),
+  selectedPerkIds: z.array(z.number()),
+}) satisfies z.ZodType<DesktopCommands["lcu_import_runes"]["args"]>;
+
+const spellsSchema = z.object({
+  spell1Id: z.number(),
+  spell2Id: z.number(),
+}) satisfies z.ZodType<DesktopCommands["lcu_set_spells"]["args"]>;
+
+const itemSetSchema = z.object({
+  championId: z.number(),
+  title: z.string(),
+  blocks: z.array(
+    z.object({
+      type: z.string(),
+      items: z.array(z.object({ id: z.number(), count: z.number() })),
+    })
+  ),
+}) satisfies z.ZodType<DesktopCommands["lcu_import_item_set"]["args"]>;
 
 const storeLoadSchema = z.object({ path: z.string() });
 const storeKeySchema = z.object({ key: z.string(), rid: z.number() });
@@ -298,6 +336,14 @@ export const installDesktopMock = () => {
     }
   };
 
+  const mock: YlcMock = {
+    calls,
+    emit: send,
+    failures: {},
+    replay,
+    runePageSlots: runeInventory.ownedPageCount,
+  };
+
   const desktopCommands: {
     [Name in DesktopCommandName]: (
       args: unknown
@@ -323,6 +369,28 @@ export const installDesktopMock = () => {
       return aggregateRecentGames(matchHistory, identity);
     },
     lcu_set_lockfile_path: () => null,
+    lcu_import_runes: (args) => {
+      requireClient();
+      runePageSchema.parse(args);
+      // The app replaces its own page, so only the player's pages fill the slots.
+      if (runePages.length >= mock.runePageSlots) {
+        throw new Error(NO_FREE_PAGE);
+      }
+      return null;
+    },
+    lcu_set_spells: (args) => {
+      requireClient();
+      spellsSchema.parse(args);
+      if (phase !== "ChampSelect") {
+        throw new Error("LCU HTTP status 404 Not Found");
+      }
+      return null;
+    },
+    lcu_import_item_set: (args) => {
+      requireClient();
+      itemSetSchema.parse(args);
+      return null;
+    },
     live_set_champion_ids: async (args) => {
       ({ championIds } = catalogSchema.parse(args));
       if (phase === "InProgress") {
@@ -348,11 +416,15 @@ export const installDesktopMock = () => {
       }
       if (isDesktopCommand(command)) {
         calls.push({ args, command });
+        const failure = mock.failures[command];
+        if (failure !== undefined) {
+          throw new Error(failure);
+        }
         return desktopCommands[command](args);
       }
       throw new Error(`Mock IPC: unknown command "${command}"`);
     },
     { shouldMockEvents: true }
   );
-  window.__ylcMock = { calls, emit: send, replay };
+  window.__ylcMock = mock;
 };

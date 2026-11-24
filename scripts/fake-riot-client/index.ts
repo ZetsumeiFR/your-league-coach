@@ -55,7 +55,7 @@ const pages = new Map<number, unknown>(
 );
 let nextPageId = 103;
 let currentItemSets: unknown = itemSets;
-let currentSelection: unknown = selection;
+let currentSelection = selection;
 let replaying = false;
 let liveData = liveGameData(false);
 const livePath = "/liveclientdata/allgamedata";
@@ -76,6 +76,31 @@ const wampEvent = z.tuple([
   z.string(),
   z.object({ data: z.json(), uri: z.string() }),
 ]);
+
+const draftSchema = z.looseObject({
+  localPlayerCellId: z.number(),
+  myTeam: z.array(z.looseObject({ cellId: z.number() })),
+});
+const selectionPatchSchema = z.object({
+  spell1Id: z.number().int().optional(),
+  spell2Id: z.number().int().optional(),
+});
+
+/**
+ * The session as the client serves it: the local player's spells are read
+ * from it, and my-selection only takes writes.
+ */
+const draftWithSpells = (session: unknown) => {
+  const draft = draftSchema.parse(session);
+  return {
+    ...draft,
+    myTeam: draft.myTeam.map((member) =>
+      member.cellId === draft.localPlayerCellId
+        ? { ...member, ...currentSelection }
+        : member
+    ),
+  };
+};
 
 const broadcast = ({
   text,
@@ -143,8 +168,10 @@ const read = (path: string) => {
       return Response.json([...pages.values()]);
     case itemsPath:
       return Response.json(currentItemSets);
-    case selectionPath:
-      return Response.json(currentSelection);
+    case draftPath:
+      return gameflow.has(draftPath)
+        ? Response.json(draftWithSpells(gameflow.get(draftPath)))
+        : notFound();
     case pickablePath:
       return gameflow.get(phasePath) === "ChampSelect"
         ? Response.json(rankedPickableChampionIds)
@@ -177,8 +204,15 @@ const mutate = (method: string, path: string, body: unknown) => {
     currentItemSets = body;
     return new Response(null, { status: 204 });
   }
-  if (method === "PATCH" && path === selectionPath) {
-    currentSelection = body;
+  if (method === "PATCH" && path === selectionPath && gameflow.has(draftPath)) {
+    const patch = selectionPatchSchema.safeParse(body);
+    if (!patch.success) {
+      return new Response(null, { status: 400 });
+    }
+    currentSelection = {
+      spell1Id: patch.data.spell1Id ?? currentSelection.spell1Id,
+      spell2Id: patch.data.spell2Id ?? currentSelection.spell2Id,
+    };
     return new Response(null, { status: 204 });
   }
   return notFound();

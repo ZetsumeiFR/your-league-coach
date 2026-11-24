@@ -21,8 +21,8 @@ impl LcuState {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Identity {
-    puuid: String,
-    summoner_id: u64,
+    pub(super) puuid: String,
+    pub(super) summoner_id: u64,
 }
 
 #[derive(Serialize)]
@@ -112,7 +112,7 @@ pub struct RecentGames {
     wins: usize,
 }
 
-fn command_error(error: Error) -> String {
+pub(super) fn command_error(error: Error) -> String {
     error.to_string()
 }
 

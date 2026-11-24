@@ -9,6 +9,8 @@ build
 target/
 !/packages/coach/src/build/
 !/packages/coach/test/build/
+!/apps/web/src/components/build/
+!/apps/web/src/lib/build/
 *.tsbuildinfo
 
 # Generated files
