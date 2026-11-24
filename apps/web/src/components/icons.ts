@@ -12,6 +12,7 @@ import GearIcon from "@your-league-coach/ui/reui/icons/default/outline/gear";
 import GlobeIcon from "@your-league-coach/ui/reui/icons/default/outline/globe";
 import HashIcon from "@your-league-coach/ui/reui/icons/default/outline/hash";
 import HomeIcon from "@your-league-coach/ui/reui/icons/default/outline/home";
+import InformationCircleIcon from "@your-league-coach/ui/reui/icons/default/outline/information-circle";
 import KeyIcon from "@your-league-coach/ui/reui/icons/default/outline/key";
 import LinkIcon from "@your-league-coach/ui/reui/icons/default/outline/link";
 import LoadingIcon from "@your-league-coach/ui/reui/icons/default/outline/loading";
@@ -45,6 +46,7 @@ export const appIcons = {
   disconnected: DisconnectIcon,
   warning: ExclamationCircleIcon,
   error: CrossCircleIcon,
+  info: InformationCircleIcon,
   refresh: RefreshArrowClockwiseIcon,
   import: EntranceUpIcon,
   pin: PinIcon,

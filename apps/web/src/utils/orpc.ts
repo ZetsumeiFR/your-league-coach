@@ -44,3 +44,13 @@ export const classifyServerError = (error: unknown): ServerFailure => {
   }
   return "unreachable";
 };
+
+/** One more try covers a network blip; a refused key or a server error will not change. */
+const MAX_UNREACHABLE_RETRIES = 1;
+
+export const retryUnreachableOnce = (
+  failures: number,
+  error: unknown
+): boolean =>
+  classifyServerError(error) === "unreachable" &&
+  failures < MAX_UNREACHABLE_RETRIES;

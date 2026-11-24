@@ -1,3 +1,4 @@
+import type { Role } from "@your-league-coach/lol-data/roles";
 import type {
   ParamReasonKind,
   PlainReasonCode,
@@ -182,6 +183,84 @@ export const en = {
       title: "No draft in progress",
       description:
         "Ban and pick suggestions appear here during champion select.",
+    },
+    unsupported: {
+      title: "Game mode not supported",
+      description: "Suggestions cover ranked, normal draft and ARAM games.",
+    },
+    aram: {
+      title: "ARAM - build only",
+      description:
+        "ARAM has no bans and no pick order, so there is nothing to suggest here.",
+    },
+    teams: {
+      allies: "Your team",
+      enemies: "Enemy team",
+      you: "You",
+      ally: "Ally {number}",
+      enemy: "Enemy {number}",
+      notPicked: "Not picked",
+      notRevealed: "Not revealed",
+      hovering: "Hovering",
+      likelyRole: "~{role}",
+      likelyRoleHint: "Likely role: {role}",
+      bans: "Bans",
+      noBans: "No ban yet",
+      unknownChampion: "Champion {id}",
+    },
+    roles: {
+      TOP: "Top",
+      JUNGLE: "Jungle",
+      MIDDLE: "Mid",
+      BOTTOM: "Bot",
+      UTILITY: "Support",
+    } satisfies Record<Role, string>,
+    rolePicker: "Your role",
+    suggestions: {
+      picks: "Pick suggestions",
+      bans: "Ban suggestions",
+      info: {
+        label: "How the score is built",
+        picks:
+          "Patch strength, matchups, synergy and your pool, in win-rate points. The bar is full at +{full}.",
+        bans: "Patch strength plus the threat to your best champions, in win-rate points. The bar is full at +{full}.",
+      },
+      score: "Score",
+      points: "{points} pts",
+      winRate: "Win rate",
+      games: { one: "{count} game", other: "{count} games" },
+      components: {
+        strength: "Patch strength",
+        matchup: "Matchups",
+        synergy: "Synergy",
+        pool: "Your pool",
+      },
+      moreReasons: "+{count}",
+      blended: "Patch {patch} + {previous}, {games} games",
+      blendedUnnamed: "Patch {patch} + previous patch, {games} games",
+      needRole: {
+        title: "Which role are you playing?",
+        description: "Pick suggestions depend on your role. Choose it above.",
+      },
+      empty: {
+        title: "No suggestion for this draft",
+        description:
+          "Too few games have been analysed for this role on the current patch.",
+      },
+      error: {
+        title: "Suggestions unavailable",
+        unreachable: "No answer from the coach server.",
+        failed: "The coach server answered with an error.",
+        unauthorized: "The coach server refused the access key.",
+        retry: "Retry",
+        openSettings: "Open settings",
+      },
+      unconfigured: {
+        title: "Coach server not set up",
+        description:
+          "Enter the server address and the access key to get suggestions.",
+        action: "Open settings",
+      },
     },
   },
   build: {

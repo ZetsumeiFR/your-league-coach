@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { suggestBans } from "@your-league-coach/coach/draft/bans";
 import {
+  inferRevealedEnemyRoles,
   type SuggestPicksInput,
   suggestPicks,
 } from "@your-league-coach/coach/draft/picks";
@@ -271,6 +272,40 @@ it("excludes both sides' bans and revealed picks, plus ally intents, but not the
     55,
   ]);
   expect(suggestBans(locked).map(({ championId }) => championId)).toEqual([55]);
+});
+
+it("reports the role assumed for each revealed enemy once, and none without a role or for an oversized draft", () => {
+  const revealed: SuggestPicksInput = {
+    ...empty,
+    draft: {
+      ...empty.draft,
+      theirTeam: [
+        { cellId: 5, championId: 157 },
+        { cellId: 6, championId: 0 },
+        { cellId: 7, championId: 64 },
+        { cellId: 8, championId: 157 },
+      ],
+    },
+    stats: {
+      ...empty.stats,
+      roleDistribution: { 157: { MIDDLE: 80, TOP: 20 }, 64: { JUNGLE: 90 } },
+    },
+  };
+  expect(inferRevealedEnemyRoles(revealed)).toEqual([
+    { championId: 157, role: "MIDDLE" },
+    { championId: 64, role: "JUNGLE" },
+  ]);
+  expect(inferRevealedEnemyRoles({ ...revealed, role: null })).toEqual([]);
+  const sixEnemies = [1, 2, 3, 4, 5, 6].map((championId) => ({
+    cellId: championId + 4,
+    championId,
+  }));
+  expect(
+    inferRevealedEnemyRoles({
+      ...empty,
+      draft: { ...empty.draft, theirTeam: sixEnemies },
+    })
+  ).toEqual([]);
 });
 
 it("returns no suggestions for empty stats even with an experienced pool entry", () => {

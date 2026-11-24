@@ -102,6 +102,43 @@ describe("suggestion responses", () => {
     expect(parsed.sources.previousGames).toBe(600);
   });
 
+  it("keeps the previous patch and the enemy roles when a response carries them", () => {
+    const picks = pickSuggestionsSchema.parse({
+      patch: "15.23",
+      previousPatch: "15.22",
+      sources,
+      enemyRoles: [{ championId: 122, role: "TOP" }],
+      suggestions: [],
+    });
+    expect(picks.previousPatch).toBe("15.22");
+    expect(picks.enemyRoles).toEqual([{ championId: 122, role: "TOP" }]);
+    const bans = banSuggestionsSchema.parse({
+      patch: "15.23",
+      previousPatch: null,
+      sources,
+      suggestions: [],
+    });
+    expect(bans.previousPatch).toBeNull();
+  });
+
+  it("rejects an enemy role without a champion or outside the five roles", () => {
+    const response = { patch: "15.23", sources, suggestions: [] };
+    expect(
+      pickSuggestionsSchema.safeParse({ ...response, enemyRoles: [] }).success
+    ).toBe(true);
+    for (const enemyRole of [
+      { championId: 0, role: "TOP" },
+      { championId: 122, role: "ADC" },
+    ]) {
+      expect(
+        pickSuggestionsSchema.safeParse({
+          ...response,
+          enemyRoles: [enemyRole],
+        }).success
+      ).toBe(false);
+    }
+  });
+
   it("rejects a response without provenance", () => {
     expect(pickSuggestionsSchema.safeParse({ suggestions: [] }).success).toBe(
       false

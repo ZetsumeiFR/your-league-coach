@@ -5,6 +5,7 @@ import {
 } from "@your-league-coach/lol-data/roles";
 import {
   type ChampionId,
+  type EnemyRole,
   type PickSuggestion,
   type PlayerPoolEntry,
   type ReasonCode,
@@ -144,6 +145,20 @@ function revealedEnemies(input: SuggestPicksInput, role: Role): DraftPeer[] {
       weight: inferred === role ? LANE_OPPONENT_WEIGHT : 1,
     };
   });
+}
+
+/**
+ * Role assumed for each revealed enemy, read from the peers suggestPicks
+ * scores against, so a label built from it cannot disagree with the ranking.
+ * Nothing is scored without a role, so nothing is assumed then.
+ */
+export function inferRevealedEnemyRoles(input: SuggestPicksInput): EnemyRole[] {
+  if (input.role === null) {
+    return [];
+  }
+  return revealedEnemies(input, input.role).flatMap(({ championId, role }) =>
+    role ? [{ championId, role }] : []
+  );
 }
 
 function candidateRows(

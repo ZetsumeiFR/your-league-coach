@@ -172,16 +172,33 @@ export const banSuggestionSchema = z.object({
 });
 export type BanSuggestion = z.infer<typeof banSuggestionSchema>;
 
+/** A revealed enemy and the role the engine assumed for it: the client never reports enemy positions. */
+export const enemyRoleSchema = z.object({
+  championId: requestChampionIdSchema,
+  role: roleSchema,
+});
+export type EnemyRole = z.infer<typeof enemyRoleSchema>;
+
+/**
+ * The patch blended in when `sources.previousGames` is above zero. Null when
+ * the server knows no older patch, absent from a server that does not report it.
+ */
+const previousPatchSchema = z.string().nullish();
+
 /** Patch label and blend provenance are stated once per response, not per row. */
 export const pickSuggestionsSchema = z.object({
   patch: z.string(),
+  previousPatch: previousPatchSchema,
   sources: blendSourcesSchema,
+  /** One entry per revealed enemy champion, as the lane-opponent weighting used them. Absent from a server that does not report it. */
+  enemyRoles: z.array(enemyRoleSchema).optional(),
   suggestions: z.array(pickSuggestionSchema),
 });
 export type PickSuggestions = z.infer<typeof pickSuggestionsSchema>;
 
 export const banSuggestionsSchema = z.object({
   patch: z.string(),
+  previousPatch: previousPatchSchema,
   sources: blendSourcesSchema,
   suggestions: z.array(banSuggestionSchema),
 });

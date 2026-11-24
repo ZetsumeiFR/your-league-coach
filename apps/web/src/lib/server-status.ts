@@ -2,7 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import type { CoachMeta } from "@your-league-coach/lol-data/types";
 import { useCallback } from "react";
 
-import { classifyServerError, orpc, type ServerFailure } from "@/utils/orpc";
+import {
+  classifyServerError,
+  orpc,
+  retryUnreachableOnce,
+  type ServerFailure,
+} from "@/utils/orpc";
 
 import { isConnectionConfigured } from "./settings";
 import { useSettings } from "./settings-store";
@@ -10,8 +15,6 @@ import { useSettings } from "./settings-store";
 const META_FRESH_FOR_MS = 60_000;
 /** Also how soon a patch rollover on the server reaches the app. */
 const META_REFRESH_EVERY_MS = 5 * 60_000;
-/** One more try covers a network blip; a refused key or a server error will not change. */
-const MAX_UNREACHABLE_RETRIES = 1;
 
 export type ServerStatus =
   | { kind: "unconfigured" }
@@ -30,9 +33,7 @@ export const useServerStatus = () => {
       enabled: isConfigured,
       staleTime: META_FRESH_FOR_MS,
       refetchInterval: META_REFRESH_EVERY_MS,
-      retry: (failures, error) =>
-        classifyServerError(error) === "unreachable" &&
-        failures < MAX_UNREACHABLE_RETRIES,
+      retry: retryUnreachableOnce,
     })
   );
 

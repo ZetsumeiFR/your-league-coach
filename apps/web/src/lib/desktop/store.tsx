@@ -18,7 +18,7 @@ import {
 } from "./events";
 
 export interface DesktopState {
-  /** Latest champion select snapshot; cleared when the client goes away. */
+  /** Draft of the current game, from its champion select until the game ends or the client goes away. */
   champSelect: DesktopEvents["lcu://champ-select"] | null;
   lcu: LcuState;
   live: LiveState;
@@ -37,6 +37,14 @@ const INITIAL_STATE: DesktopState = {
   locale: null,
   phase: null,
 };
+
+/** Phases of one game, from its champion select to its end: the snapshot is that game's draft during them. */
+const DRAFT_PHASES: ReadonlySet<GameflowPhase> = new Set([
+  "ChampSelect",
+  "GameStart",
+  "InProgress",
+  "Reconnect",
+]);
 
 type DesktopAction =
   | { name: "lcu://status"; payload: DesktopEvents["lcu://status"] }
@@ -59,8 +67,15 @@ const reduce = (state: DesktopState, action: DesktopAction): DesktopState => {
         ? { ...state, lcu }
         : { ...state, lcu, champSelect: null };
     }
-    case "lcu://gameflow":
-      return { ...state, phase: action.payload.phase };
+    case "lcu://gameflow": {
+      const { phase } = action.payload;
+      // A snapshot belongs to one game: the next champion select must not start on it.
+      return {
+        ...state,
+        phase,
+        champSelect: DRAFT_PHASES.has(phase) ? state.champSelect : null,
+      };
+    }
     case "lcu://champ-select":
       return {
         ...state,
@@ -85,6 +100,8 @@ const reduce = (state: DesktopState, action: DesktopAction): DesktopState => {
       return state;
   }
 };
+
+export { INITIAL_STATE as initialDesktopState, reduce as reduceDesktopState };
 
 const DesktopContext = createContext<DesktopState | null>(null);
 
