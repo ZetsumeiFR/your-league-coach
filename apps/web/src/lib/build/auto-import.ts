@@ -3,6 +3,12 @@ import type { DraftState } from "@your-league-coach/lol-data/types";
 import { type DraftMode, draftMode } from "../draft/request";
 import { assignedChampionId } from "./request";
 
+/**
+ * How long an ARAM assignment has to last, without a break, before its build
+ * is imported: rerolls and bench swaps come in bursts.
+ */
+const ARAM_SETTLE_MS = 1000;
+
 interface AutoImportMemory {
   /** Champion whose automatic import has run to its end; 0 for none. */
   imported: number;
@@ -22,9 +28,9 @@ const NO_AUTO_IMPORT: AutoImportMemory = {
 export interface DraftSighting {
   autoImport: boolean;
   /**
-   * On the Rift, the champion of the local pick. In ARAM, the champion
-   * assigned to the local player now, once it has stopped changing; 0 while
-   * none is assigned or while it has just changed.
+   * On the Rift, the champion of the local pick. In ARAM, the champion the
+   * client has assigned to the local player, never one they hover or declare;
+   * 0 while none is assigned.
    */
   championId: number;
   completed: boolean;
@@ -32,56 +38,45 @@ export interface DraftSighting {
   session: number;
 }
 
-/**
- * The champion an automatic import waits on in ARAM: the one the client has
- * assigned to the local player, never one they hover or declare. 0 on the
- * Rift, where the lock decides, and while none is assigned.
- */
-export const aramChampionId = (draft: DraftState): number =>
-  draftMode(draft.queueId) === "aram" ? assignedChampionId(draft) : 0;
+/** The ARAM assignment in front of the window; champion 0 for none. */
+interface Assignment {
+  championId: number;
+  /** Whether it has lasted `ARAM_SETTLE_MS` without a break. */
+  hasLasted: boolean;
+  session: number;
+}
 
-/**
- * The assigned champion, once the debounce holds that same champion. What the
- * debounce still holds after the assignment changed or was withdrawn is not
- * assigned any more and counts for nothing.
- */
-const settledAssignment = (
-  draft: DraftState,
-  settledAramChampionId: number
-): number =>
-  settledAramChampionId === aramChampionId(draft) ? settledAramChampionId : 0;
+const NO_ASSIGNMENT: Assignment = {
+  championId: 0,
+  hasLasted: false,
+  session: 0,
+};
 
 export const sightingOf = (
   draft: DraftState,
-  {
-    autoImport,
-    session,
-    settledAramChampionId,
-  }: {
-    autoImport: boolean;
-    session: number;
-    /** `aramChampionId` of the draft, once it has stopped changing. */
-    settledAramChampionId: number;
-  }
+  { autoImport, session }: { autoImport: boolean; session: number }
 ): DraftSighting => {
   const mode = draftMode(draft.queueId);
   return {
     autoImport,
     championId:
-      mode === "aram"
-        ? settledAssignment(draft, settledAramChampionId)
-        : draft.localPick.championId,
+      mode === "aram" ? assignedChampionId(draft) : draft.localPick.championId,
     completed: draft.localPick.completed,
     mode,
     session,
   };
 };
 
-const nextTarget = (memory: AutoImportMemory, seen: DraftSighting): number => {
+const nextTarget = (
+  memory: AutoImportMemory,
+  seen: DraftSighting,
+  hasAssignmentLasted: boolean
+): number => {
   if (seen.mode === "aram") {
     // Nothing is kept from earlier sightings: an import that was waiting goes
-    // with its assignment, and only an assignment makes one due again.
-    return seen.championId;
+    // with its assignment, and only an assignment that has lasted makes one
+    // due again.
+    return hasAssignmentLasted ? seen.championId : 0;
   }
   const isLockIn =
     seen.mode === "rift" &&
@@ -96,19 +91,21 @@ const nextTarget = (memory: AutoImportMemory, seen: DraftSighting): number => {
  * On the Rift an import is wanted once, when the pick goes from unlocked to
  * locked in front of this window: never on a hover, on a lock seen again, or
  * on a pick that was already locked when the window first saw it. In ARAM it
- * is wanted for the champion assigned to the player, for as long as it is
- * assigned. While the setting is off nothing is wanted, and switching it on
- * imports nothing by itself. Seeing the same thing twice changes nothing.
+ * is wanted for the champion assigned to the player, once that assignment has
+ * lasted and for as long as it goes on. While the setting is off nothing is
+ * wanted, and switching it on imports nothing by itself. Seeing the same
+ * thing twice changes nothing.
  */
 const observeDraft = (
   memory: AutoImportMemory,
-  seen: DraftSighting
+  seen: DraftSighting,
+  hasAssignmentLasted: boolean
 ): AutoImportMemory => {
   const current =
     memory.session === seen.session
       ? memory
       : { ...NO_AUTO_IMPORT, session: seen.session };
-  const target = nextTarget(current, seen);
+  const target = nextTarget(current, seen, hasAssignmentLasted);
   const isSkippedWhileOff = !seen.autoImport && target !== 0;
   return {
     session: current.session,
@@ -162,7 +159,8 @@ export interface AutoImporter<Build> {
  * Decides when a build is imported by itself and sends it, one import at a
  * time. A champion counts as imported once its own import has run to its end:
  * when the champion changes while another one is being sent, the new one is
- * sent right after.
+ * sent right after. In ARAM it times the assignment itself: nothing is due
+ * before the assignment in front of the window has lasted `ARAM_SETTLE_MS`.
  */
 export const createAutoImporter = <
   Build extends { championId: number },
@@ -170,6 +168,8 @@ export const createAutoImporter = <
   let memory = NO_AUTO_IMPORT;
   let view: AutoImportView<Build> | null = null;
   let isSending = false;
+  let assignment = NO_ASSIGNMENT;
+  let settling: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
 
   const dueChampionId = () => (view?.seen ? dueAutoImport(memory) : 0);
@@ -181,6 +181,12 @@ export const createAutoImporter = <
       for (const listener of listeners) {
         listener();
       }
+    }
+  };
+
+  const observe = () => {
+    if (view?.seen) {
+      memory = observeDraft(memory, view.seen, assignment.hasLasted);
     }
   };
 
@@ -213,6 +219,33 @@ export const createAutoImporter = <
     await sendDue();
   };
 
+  /**
+   * Starts the wait again on every change of assignment: another champion,
+   * none, or the same champion back after a gap. What an earlier assignment
+   * had lasted counts for nothing.
+   */
+  const followAssignment = (seen: DraftSighting | null) => {
+    const championId = seen?.mode === "aram" ? seen.championId : 0;
+    const session = seen?.session ?? 0;
+    const isSame =
+      championId === assignment.championId && session === assignment.session;
+    if (isSame) {
+      return;
+    }
+    clearTimeout(settling);
+    assignment = { championId, hasLasted: false, session };
+    if (championId === 0) {
+      return;
+    }
+    settling = setTimeout(() => {
+      change(() => {
+        assignment = { ...assignment, hasLasted: true };
+        observe();
+      });
+      sendDue();
+    }, ARAM_SETTLE_MS);
+  };
+
   return {
     dueChampionId,
     retry: sendDue,
@@ -225,9 +258,8 @@ export const createAutoImporter = <
     update: (next) => {
       change(() => {
         view = next;
-        if (next.seen) {
-          memory = observeDraft(memory, next.seen);
-        }
+        followAssignment(next.seen);
+        observe();
       });
       return sendDue();
     },

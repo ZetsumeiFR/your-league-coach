@@ -1,8 +1,7 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, jest } from "bun:test";
 import type { DraftState } from "@your-league-coach/lol-data/types";
 
 import {
-  aramChampionId,
   createAutoImporter,
   type DraftSighting,
   sightingOf,
@@ -12,11 +11,17 @@ import {
   type ImportCommands,
   importBuild,
 } from "../src/lib/desktop/import";
-import { locked, withLocal } from "./support/ranked-drafts";
+import { hovering, locked, withLocal } from "./support/ranked-drafts";
 
 const AHRI = 103;
 const ASHE = 22;
 const JINX = 222;
+
+/**
+ * How long an ARAM assignment has to last before its import: the plan's
+ * figure, written here and not read from the code under test.
+ */
+const SETTLE_MS = 1000;
 
 type Build = BuildImport["build"];
 
@@ -35,6 +40,19 @@ const COMMANDS = ["runes", "spells", "items"] as const;
 const commandsOf = (championId: number): string[] =>
   COMMANDS.map((command) => `${command} ${championId}`);
 
+beforeEach(() => {
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
+
+const pass = (ms: number) => {
+  jest.advanceTimersByTime(ms);
+};
+
 /**
  * A League client that records the commands it receives, named after the
  * champion of their import. `send` is the app's own import, on that client.
@@ -42,6 +60,7 @@ const commandsOf = (championId: number): string[] =>
 const client = () => {
   const calls: string[] = [];
   const held = new Map<number, Promise<null>>();
+  const imports: Promise<unknown>[] = [];
   const commandsFor = (championId: number): ImportCommands => {
     const record = (command: (typeof COMMANDS)[number]) => {
       calls.push(`${command} ${championId}`);
@@ -56,6 +75,12 @@ const client = () => {
       importItemSet: () => record("items"),
     };
   };
+  const ended = async (from: number): Promise<void> => {
+    if (from < imports.length) {
+      await imports[from];
+      await ended(from + 1);
+    }
+  };
   return {
     calls,
     hold: (championId: number) => {
@@ -66,8 +91,8 @@ const client = () => {
         gate.resolve(null);
       };
     },
-    send: (build: Build) =>
-      importBuild(
+    send: (build: Build) => {
+      const outcomes = importBuild(
         {
           blocks: [{ type: "Core", items: [{ id: 6655, count: 1 }] }],
           build,
@@ -75,7 +100,19 @@ const client = () => {
           title: `YLC ${build.championId}`,
         },
         commandsFor(build.championId)
-      ),
+      );
+      imports.push(outcomes);
+      return outcomes;
+    },
+    /**
+     * The commands received once every import started has ended. When one
+     * ends the importer goes on before this does, so an import it starts
+     * right after is waited for too.
+     */
+    sent: async (): Promise<string[]> => {
+      await ended(0);
+      return [...calls];
+    },
   };
 };
 
@@ -89,13 +126,6 @@ const rift = (change: Partial<DraftSighting> = {}): DraftSighting => ({
 });
 const hover = rift();
 const lock = rift({ completed: true });
-const aram = (championId: number, autoImport = true): DraftSighting => ({
-  autoImport,
-  championId,
-  completed: false,
-  mode: "aram",
-  session: 1,
-});
 
 /**
  * Shows the sightings to an importer one after the other, with the build of
@@ -199,6 +229,9 @@ describe("automatic import on the Rift", () => {
 });
 
 describe("automatic import in ARAM", () => {
+  const BUILD_LATE_MS = 1700;
+  const SHORT_GAP_MS = 135;
+
   const aramDraft = (
     local: Pick<
       DraftState["myTeam"][number],
@@ -213,138 +246,187 @@ describe("automatic import in ARAM", () => {
     },
     queueId: 450,
   });
-
-  it("imports for each champion the player settles on, back to an earlier one included", async () => {
-    expect(
-      await importsOf([aram(0), aram(ASHE), aram(ASHE), aram(JINX), aram(ASHE)])
-    ).toEqual([0, ASHE, 0, JINX, ASHE]);
-  });
-
-  it("keeps waiting while the champion has not settled", async () => {
-    expect(await importsOf([aram(ASHE), aram(0), aram(0)])).toEqual([
-      ASHE,
-      0,
-      0,
-    ]);
-  });
-
-  it("imports nothing for the champion on screen when the setting is switched on", async () => {
-    expect(
-      await importsOf([aram(ASHE, false), aram(ASHE), aram(JINX)])
-    ).toEqual([0, 0, JINX]);
-  });
-
-  it("imports nothing for a champion the player only hovers or declares", async () => {
-    const { calls, send } = client();
-    const importer = createAutoImporter<Build>();
-    const see = (draft: DraftState) =>
-      importer.update({
-        build: buildOf(ASHE),
-        seen: sightingOf(draft, {
-          autoImport: true,
-          session: 1,
-          settledAramChampionId: aramChampionId(draft),
-        }),
-        send,
-      });
-
-    const declared = aramDraft({ championId: 0, championPickIntent: ASHE });
-    expect(aramChampionId(declared)).toBe(0);
-    await see(declared);
-    await see(declared);
-    expect(calls).toEqual([]);
-
-    await see(aramDraft({ championId: ASHE, championPickIntent: ASHE }));
-    expect(calls).toEqual(commandsOf(ASHE));
-  });
-
-  /**
-   * An importer fed as the component feeds it: the draft now, the champion its
-   * one-second debounce still holds, and the build on screen.
-   */
-  const watching = () => {
-    const { calls, hold, send } = client();
-    const importer = createAutoImporter<Build>();
-    const see = (
-      draft: DraftState,
-      settledAramChampionId: number,
-      build: Build | null
-    ) =>
-      importer.update({
-        build,
-        seen: sightingOf(draft, {
-          autoImport: true,
-          session: 1,
-          settledAramChampionId,
-        }),
-        send,
-      });
-    return { calls, hold, see };
-  };
   const assigned = (championId: number) =>
     aramDraft({ championId, championPickIntent: 0 });
   const withdrawn = aramDraft({ championId: 0, championPickIntent: 0 });
   const declared = aramDraft({ championId: 0, championPickIntent: ASHE });
 
+  /**
+   * An importer fed as the component feeds it: the draft now and the build at
+   * hand. It times the assignment itself, on the clock `pass` moves.
+   */
+  const watching = () => {
+    const { calls, hold, send, sent } = client();
+    const importer = createAutoImporter<Build>();
+    const see = (draft: DraftState, build: Build | null, autoImport = true) =>
+      importer.update({
+        build,
+        seen: sightingOf(draft, { autoImport, session: 1 }),
+        send,
+      });
+    const settleOn = async (championId: number) => {
+      await see(assigned(championId), buildOf(championId));
+      pass(SETTLE_MS);
+      return sent();
+    };
+    return { calls, hold, see, sent, settleOn };
+  };
+
+  it("imports for each champion the player settles on, back to an earlier one included", async () => {
+    const { see, sent, settleOn } = watching();
+    await see(withdrawn, null);
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
+
+    expect(await settleOn(ASHE)).toEqual(commandsOf(ASHE));
+    expect(await settleOn(ASHE)).toEqual(commandsOf(ASHE));
+    expect(await settleOn(JINX)).toEqual([
+      ...commandsOf(ASHE),
+      ...commandsOf(JINX),
+    ]);
+    expect(await settleOn(ASHE)).toEqual([
+      ...commandsOf(ASHE),
+      ...commandsOf(JINX),
+      ...commandsOf(ASHE),
+    ]);
+  });
+
+  it("keeps waiting while the champion has not settled", async () => {
+    const { see, sent } = watching();
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS - 1);
+    await see(assigned(JINX), buildOf(JINX));
+    pass(SETTLE_MS - 1);
+    expect(await sent()).toEqual([]);
+
+    pass(1);
+    expect(await sent()).toEqual(commandsOf(JINX));
+  });
+
+  it("imports nothing for the champion on screen when the setting is switched on", async () => {
+    const { see, sent, settleOn } = watching();
+    await see(assigned(ASHE), buildOf(ASHE), false);
+    pass(SETTLE_MS);
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
+
+    expect(await settleOn(JINX)).toEqual(commandsOf(JINX));
+  });
+
+  it("imports nothing for a champion the player only hovers or declares", async () => {
+    const { see, sent } = watching();
+    await see(declared, buildOf(ASHE));
+    pass(SETTLE_MS);
+    await see(declared, buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
+
+    await see(
+      aramDraft({ championId: ASHE, championPickIntent: ASHE }),
+      buildOf(ASHE)
+    );
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual(commandsOf(ASHE));
+  });
+
   it("drops an import still waiting for its build once the assignment is withdrawn", async () => {
-    const { calls, see } = watching();
-    await see(assigned(ASHE), ASHE, null);
+    const { see, sent } = watching();
+    await see(assigned(ASHE), null);
+    pass(SETTLE_MS);
 
-    await see(withdrawn, ASHE, null);
-    await see(withdrawn, ASHE, buildOf(ASHE));
-    await see(withdrawn, 0, buildOf(ASHE));
-    expect(calls).toEqual([]);
+    await see(withdrawn, null);
+    await see(withdrawn, buildOf(ASHE));
+    expect(await sent()).toEqual([]);
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
 
-    await see(declared, ASHE, buildOf(ASHE));
-    await see(declared, 0, buildOf(ASHE));
-    expect(calls).toEqual([]);
+    await see(declared, buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
 
-    await see(assigned(ASHE), 0, buildOf(ASHE));
-    expect(calls).toEqual([]);
-    await see(assigned(ASHE), ASHE, buildOf(ASHE));
-    await see(assigned(ASHE), ASHE, buildOf(ASHE));
-    expect(calls).toEqual(commandsOf(ASHE));
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS - 1);
+    expect(await sent()).toEqual([]);
+    pass(1);
+    expect(await sent()).toEqual(commandsOf(ASHE));
+  });
+
+  it("counts the second again when the same champion is assigned back after a short gap", async () => {
+    const { see, sent } = watching();
+    await see(assigned(ASHE), null);
+    pass(BUILD_LATE_MS);
+    await see(withdrawn, null);
+    pass(SHORT_GAP_MS);
+    await see(assigned(ASHE), null);
+    await see(assigned(ASHE), buildOf(ASHE));
+    expect(await sent()).toEqual([]);
+
+    pass(SETTLE_MS - 1);
+    expect(await sent()).toEqual([]);
+    pass(1);
+    expect(await sent()).toEqual(commandsOf(ASHE));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual(commandsOf(ASHE));
+  });
+
+  it("imports nothing when the champion assigned back is withdrawn within its second", async () => {
+    const { see, sent } = watching();
+    await see(assigned(ASHE), null);
+    pass(BUILD_LATE_MS);
+    await see(withdrawn, null);
+    pass(SHORT_GAP_MS);
+    await see(assigned(ASHE), null);
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS / 2);
+    await see(withdrawn, buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
   });
 
   it("sends nothing after the import in progress when the assignment was withdrawn meanwhile", async () => {
-    const { calls, hold, see } = watching();
-    await see(assigned(ASHE), ASHE, buildOf(ASHE));
-    expect(calls).toEqual(commandsOf(ASHE));
+    const { calls, hold, see, sent, settleOn } = watching();
+    expect(await settleOn(ASHE)).toEqual(commandsOf(ASHE));
 
     const release = hold(JINX);
-    const importingJinx = see(assigned(JINX), JINX, buildOf(JINX));
-    await see(assigned(ASHE), ASHE, buildOf(ASHE));
-    await see(declared, ASHE, buildOf(ASHE));
-    await see(declared, 0, buildOf(ASHE));
+    await see(assigned(JINX), buildOf(JINX));
+    pass(SETTLE_MS);
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS);
+    await see(declared, buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(calls).toEqual([...commandsOf(ASHE), `runes ${JINX}`]);
 
     release();
-    await importingJinx;
-    expect(calls.slice(3)).toEqual(commandsOf(JINX));
+    expect(await sent()).toEqual([...commandsOf(ASHE), ...commandsOf(JINX)]);
   });
 
-  it("waits on no champion on the Rift, where the lock decides", () => {
-    expect(aramChampionId(withLocal(locked, { championId: AHRI }))).toBe(0);
+  it("waits on no champion on the Rift, where the lock decides", async () => {
+    const { see, sent } = watching();
+    await see(withLocal(hovering, { championId: AHRI }), buildOf(AHRI));
+    pass(SETTLE_MS);
+    expect(await sent()).toEqual([]);
+
+    await see(locked, buildOf(AHRI));
+    expect(await sent()).toEqual(commandsOf(AHRI));
   });
 
   it("sends the champion finally assigned once the import of the previous one has ended", async () => {
-    const { calls, hold, send } = client();
-    const importer = createAutoImporter<Build>();
-    const settleOn = (championId: number) =>
-      importer.update({
-        build: buildOf(championId),
-        seen: aram(championId),
-        send,
-      });
-    await settleOn(ASHE);
-    expect(calls).toEqual(commandsOf(ASHE));
+    const { calls, hold, see, sent, settleOn } = watching();
+    expect(await settleOn(ASHE)).toEqual(commandsOf(ASHE));
 
     const release = hold(JINX);
-    const importingJinx = settleOn(JINX);
-    const backToAshe = settleOn(ASHE);
-    expect(calls.slice(3)).toEqual([`runes ${JINX}`]);
+    await see(assigned(JINX), buildOf(JINX));
+    pass(SETTLE_MS);
+    await see(assigned(ASHE), buildOf(ASHE));
+    pass(SETTLE_MS);
+    expect(calls).toEqual([...commandsOf(ASHE), `runes ${JINX}`]);
 
     release();
-    await Promise.all([importingJinx, backToAshe]);
-    expect(calls.slice(3)).toEqual([...commandsOf(JINX), ...commandsOf(ASHE)]);
+    expect(await sent()).toEqual([
+      ...commandsOf(ASHE),
+      ...commandsOf(JINX),
+      ...commandsOf(ASHE),
+    ]);
   });
 });

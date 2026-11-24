@@ -1,23 +1,15 @@
 import type { BuildRecommendation } from "@your-league-coach/lol-data/types";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-import {
-  aramChampionId,
-  createAutoImporter,
-  sightingOf,
-} from "@/lib/build/auto-import";
+import { createAutoImporter, sightingOf } from "@/lib/build/auto-import";
 import { buildInput } from "@/lib/build/request";
 import { useImportState } from "@/lib/desktop/import";
 import { useDesktop } from "@/lib/desktop/store";
 import { usePickedRole } from "@/lib/draft/picked-role";
 import { useSettings } from "@/lib/settings-store";
-import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 import { useBuild } from "./use-build";
 import { useImportBuild } from "./use-import-build";
-
-/** An ARAM champion counts once it has stayed the same this long: rerolls and bench swaps come in bursts. */
-const ARAM_SETTLE_MS = 1000;
 
 /**
  * Imports the build by itself when the setting is on, whatever screen is
@@ -31,10 +23,6 @@ export function AutoImport() {
   const send = useImportBuild();
   const [importer] = useState(createAutoImporter<BuildRecommendation>);
   const draft = phase === "ChampSelect" ? champSelect : null;
-  const settledAramChampionId = useDebouncedValue(
-    draft ? aramChampionId(draft) : 0,
-    ARAM_SETTLE_MS
-  );
 
   const dueChampionId = useSyncExternalStore(
     importer.subscribe,
@@ -49,23 +37,11 @@ export function AutoImport() {
     importer.update({
       build,
       seen: draft
-        ? sightingOf(draft, {
-            autoImport,
-            session: champSelectSession,
-            settledAramChampionId,
-          })
+        ? sightingOf(draft, { autoImport, session: champSelectSession })
         : null,
       send,
     });
-  }, [
-    autoImport,
-    build,
-    champSelectSession,
-    draft,
-    importer,
-    send,
-    settledAramChampionId,
-  ]);
+  }, [autoImport, build, champSelectSession, draft, importer, send]);
 
   useEffect(() => {
     if (!isImporting) {
