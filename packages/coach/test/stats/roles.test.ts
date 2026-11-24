@@ -35,6 +35,41 @@ describe("inferEnemyRoles", () => {
     ]);
   });
 
+  it("selects the higher-likelihood rotation even when both log scores round to the same value", () => {
+    // Both likelihoods have denominator 10668^5. The rotation's numerator
+    // is 4317808507419997590, greater than the diagonal's 4317808507419992550.
+    const assignments = inferEnemyRoles(FIVE_CHAMPIONS, {
+      266: { TOP: 5341, JUNGLE: 5327 },
+      64: { JUNGLE: 5342, MIDDLE: 5326 },
+      103: { MIDDLE: 5333, BOTTOM: 5335 },
+      22: { BOTTOM: 5329, UTILITY: 5339 },
+      89: { UTILITY: 5325, TOP: 5343 },
+    });
+
+    expect(FIVE_CHAMPIONS.map((id) => assignments.get(id)?.role)).toEqual([
+      "JUNGLE",
+      "MIDDLE",
+      "BOTTOM",
+      "UTILITY",
+      "TOP",
+    ]);
+  });
+
+  it.each([1, 0.5, Number.MIN_VALUE])(
+    "breaks exact ties by input and role order at count scale %s",
+    (scale) => {
+      // TOP/JUNGLE and JUNGLE/TOP tie: 1 * 10 = 5 * 2. Multiplying
+      // the rounded confidences instead would favor JUNGLE/TOP.
+      const assignments = inferEnemyRoles([266, 64], {
+        266: { TOP: scale, JUNGLE: 5 * scale },
+        64: { TOP: 2 * scale, JUNGLE: 10 * scale, MIDDLE: scale },
+      });
+
+      expect(assignments.get(266)?.role).toBe("TOP");
+      expect(assignments.get(64)?.role).toBe("JUNGLE");
+    }
+  );
+
   it.each([{}, { 266: { TOP: 0 } }])(
     "uses uniform probabilities for zero-data champions: %j",
     (roleDistribution) => {

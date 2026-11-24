@@ -1,5 +1,10 @@
 import { ROLES, type Role } from "@your-league-coach/lol-data/roles";
 
+/** Place value above the 52-bit binary64 fraction field. */
+const FRACTION_RADIX = 2n ** 52n;
+/** Place value above the 11-bit binary64 exponent field. */
+const EXPONENT_RADIX = 2n ** 11n;
+
 type RoleCounts = Readonly<Partial<Record<Role, number>>>;
 
 /** Games by champion ID and role. Missing champion or role entries mean zero. */
@@ -11,10 +16,27 @@ export interface InferredRole {
   readonly role: Role;
 }
 
+interface RoleOption {
+  readonly assignment: InferredRole;
+  readonly weight: bigint;
+}
+
+/** Encodes a non-negative finite count in units of Number.MIN_VALUE. */
+function exactCountUnits(games: number, bits: DataView): bigint {
+  bits.setFloat64(0, games);
+  const encoded = bits.getBigUint64(0);
+  const fraction = encoded % FRACTION_RADIX;
+  const exponent = (encoded / FRACTION_RADIX) % EXPONENT_RADIX;
+  // Subnormals already use these units; normal values have an implicit bit.
+  return exponent === 0n
+    ? fraction
+    : (FRACTION_RADIX + fraction) * 2n ** (exponent - 1n);
+}
+
 function roleOptions(
   championId: number,
   counts: RoleCounts | undefined
-): InferredRole[] {
+): RoleOption[] {
   let total = 0;
   for (const role of ROLES) {
     const games = counts?.[role] ?? 0;
@@ -30,10 +52,17 @@ function roleOptions(
       `Total games for champion ${championId} must be finite`
     );
   }
-  return ROLES.map((role) => ({
-    role,
-    confidence: total === 0 ? 1 / ROLES.length : (counts?.[role] ?? 0) / total,
-  }));
+  const bits = new DataView(new ArrayBuffer(Float64Array.BYTES_PER_ELEMENT));
+  return ROLES.map((role) => {
+    const games = counts?.[role] ?? 0;
+    return {
+      assignment: {
+        role,
+        confidence: total === 0 ? 1 / ROLES.length : games / total,
+      },
+      weight: total === 0 ? 1n : exactCountUnits(games, bits),
+    };
+  });
 }
 
 /**
@@ -66,31 +95,32 @@ export function inferEnemyRoles(
   const usedRoles = new Set<Role>();
   const assignment = new Map<number, InferredRole>();
   let best = new Map<number, InferredRole>();
-  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestScore = -1n;
 
-  // Adding logs ranks the products without underflow for small probabilities.
-  function search(index: number, score: number): void {
+  // Per-champion denominators are fixed across assignments, so exact products
+  // of the count weights rank the probabilities without rounding or underflow.
+  function search(index: number, score: bigint): void {
     const champion = champions[index];
     if (!champion) {
-      if (best.size === 0 || score > bestScore) {
+      if (score > bestScore) {
         best = new Map(assignment);
         bestScore = score;
       }
       return;
     }
 
-    for (const option of champion.options) {
+    for (const { assignment: option, weight } of champion.options) {
       if (usedRoles.has(option.role)) {
         continue;
       }
       usedRoles.add(option.role);
       assignment.set(champion.id, option);
-      search(index + 1, score + Math.log(option.confidence));
+      search(index + 1, score * weight);
       assignment.delete(champion.id);
       usedRoles.delete(option.role);
     }
   }
 
-  search(0, 0);
+  search(0, 1n);
   return best;
 }
