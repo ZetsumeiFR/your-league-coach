@@ -1,134 +1,91 @@
-# your-league-coach
+# Your League Coach
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
+A desktop companion for League of Legends champ select and in-game item choices. It watches the League client on its own (no manual input), then suggests bans, picks, a full build (runes, summoner spells, skill order, items) and the next items to buy in game, based on current-patch Emerald+ match data. Recommendations can be imported into the client in one click.
 
-## Features
+- **Desktop app** (Tauri, Windows and macOS): talks to the local League client and to your server.
+- **Server** (Hono + oRPC): serves recommendations, protected by one shared access key.
+- **Collector**: crawls the Riot API, aggregates stats per patch, keeps retention.
+- **PostgreSQL**, **Caddy** (automatic HTTPS) and a one-shot `migrate` job complete the stack.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Hono** - Lightweight, performant server framework
-- **oRPC** - End-to-end type-safe APIs with OpenAPI integration
-- **Bun** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
-- **Tauri** - Build native desktop applications
-- **Turborepo** - Optimized monorepo build system
+The app only uses the Riot API, the League client API (LCU) and the Live Client Data API. It never shows other players' names in champ select and offers no dodge help.
 
-## Getting Started
+## Data caveat: Emerald+ seed tier
 
-First, install the dependencies:
+Players are seeded from the Emerald+ ladders (EMERALD and DIAMOND via league-exp-v4, plus master, grandmaster and challenger via league-v4). Only matches from those players' histories are collected. For normal draft, flex and ARAM matches the seed player is Emerald+, but the **other nine participants' ranks are unknown**, so those queues are not strictly Emerald+ samples.
+
+## Riot personal product key
+
+1. Sign in at <https://developer.riotgames.com> and register a **Personal** product (describe the app honestly; no commercial use).
+2. Once approved, copy the production API key. It is tied to your account: keep it secret and never commit it.
+3. Put it in `apps/collector/.env` as `RIOT_API_KEY` (see below). Run **exactly one collector per Riot key** at any time (also never run a local collector against the same key while the VPS one runs).
+
+The personal key allows about 72,000 requests per day (20 per second, 100 per 2 minutes); the collector enforces these limits itself and stops on HTTP 401/403.
+
+## Environment
+
+Each app owns an `.env.schema` (validated by [Varlock](https://varlock.dev)); real values live in git-ignored `.env` files. Copy the values you need:
+
+| File | Variables |
+| --- | --- |
+| `.env` (repo root, read by Docker Compose) | `POSTGRES_PASSWORD` (required, no default), `COACH_DOMAIN` (required), optional `CADDY_HTTP_PORT` / `CADDY_HTTPS_PORT` (default 80 / 443), dev only `POSTGRES_HOST_PORT` (default 5432). Template: `.env.example`. |
+| `apps/collector/.env` | `RIOT_API_KEY`, `RIOT_PLATFORM` (default `euw1`), `RIOT_REGION` (default `europe`), `DATABASE_URL` (overridden by Compose), optional `DDRAGON_BASE_URL`. |
+| `apps/server/.env` | `COACH_ACCESS_KEY` (shared key, at least 32 characters), `CORS_ORIGIN`, `DATABASE_URL` (overridden by Compose). |
+| `apps/web/.env` | Web/desktop public settings. |
+
+A collector started without `RIOT_API_KEY` exits immediately with a Varlock validation error.
+
+## Deploy on a VPS
+
+1. Point a DNS record (`COACH_DOMAIN`) at the VPS and open ports 80 and 443.
+2. Create `.env` (root) and the three app `.env` files above. Generate the shared key with `openssl rand -hex 32`.
+3. Start everything:
+
+```bash
+bun run docker:up
+```
+
+This builds the images, starts Postgres, runs migrations (`migrate`, one-shot), then the server, the collector and Caddy, which obtains a certificate for `COACH_DOMAIN` automatically. Only Caddy publishes ports; Postgres and the server are reachable inside the Compose network only.
+
+Other commands: `bun run docker:logs`, `bun run docker:down`, `bun run docker:build`. Check with `docker compose ps` (postgres and server healthy, `migrate` exited 0) and `docker compose logs collector` (patch detected, crawl started).
+
+Quick check from anywhere:
+
+```bash
+curl -s -X POST https://<COACH_DOMAIN>/rpc/coach/meta -H 'Authorization: Bearer <key>' -H 'content-type: application/json' -d '{}'
+```
+
+A request without the header returns 401.
+
+## Friends: connect the app
+
+Install the desktop app (see Desktop Installers), open **Settings**, and enter the server URL (`https://<COACH_DOMAIN>`) and the shared access key you were given. No account is needed. `http://` URLs are accepted only for `localhost` / `127.0.0.1`.
+
+## Local development
 
 ```bash
 bun install
+bun run db:start        # Postgres on 127.0.0.1:${POSTGRES_HOST_PORT:-5432} (loopback only)
+bun run dev:server      # API on http://localhost:3000
+bun run dev:collector   # collector (uses the real Riot key)
+bun run dev:web         # web UI
 ```
 
-## Database Setup
+`db:start`, `db:watch`, `db:stop` and `db:down` use `compose.dev.yml`, which publishes Postgres on loopback only. Set `POSTGRES_HOST_PORT` if 5432 is already taken. `bun run docker:up:dev` starts the full stack the same way (Postgres reachable from the host).
 
-This project uses PostgreSQL with Drizzle ORM.
+Apply migrations manually with `bun run --cwd packages/db db:migrate:deploy`.
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+Collector CLI (`apps/collector`): `bun run src/index.ts` runs all loops; `--no-crawl` keeps patch, aggregation and retention only; `--once patch|seed|crawl|aggregate|retention` runs a single job (`--limit N` only with `seed` or `crawl`).
 
-3. Apply the schema to your database:
+## Scripts
 
-```bash
-bun run db:push
-```
+- `bun run check` / `bun run fix`: lint and format (Ultracite)
+- `bun run check-types`: type-check all workspaces
+- `bun run db:generate | db:migrate | db:push | db:studio`: Drizzle tooling
+- `cd apps/web && bun run desktop:dev` / `desktop:build`: run or build the Tauri app for the current OS (not defined at the repo root)
 
-Then, run the development server:
+## Building the desktop app
 
-```bash
-bun run dev
-```
-
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
-
-## UI Customization
-
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
-
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
-
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
-
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
-
-Import shared components like this:
-
-```tsx
-import { Button } from "@your-league-coach/ui/components/button";
-```
-
-### Add app-specific blocks
-
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
-
-## Environment Configuration
-
-Each app owns its environment schema in `.env.schema`. Varlock generates `src/env.ts` during installation; run `bun run env:generate` after changing a schema. Commit schemas, and keep secrets in ignored env files or your deployment platform.
-
-Import the generated `ENV` accessor in application code. Shared database and auth packages receive configuration or initialized clients from the application. See [Varlock's monorepo guide](https://varlock.dev/guides/monorepos/).
-
-Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock. Node deployments must include Varlock and its dependencies alongside the app schema.
-
-Run standalone Node/Bun tools that use Varlock from the owning app directory so they load that app's schema and env files. `env:generate` only generates TypeScript files; it does not initialize environment values in a subsequent command.
-
-## Deployment
-
-### Docker Compose
-
-- Target: server
-- Config: `docker-compose.yml` (app Dockerfiles live in `apps/*/Dockerfile`)
-- Build images: bun run docker:build
-- Start: bun run docker:up
-- Logs: bun run docker:logs
-- Stop: bun run docker:down
-
-Environment variables are read from each app's `.env` file (baked into web builds for public variables) and overridden in `docker-compose.yml` for container networking.
-
-For more details, see the guide on [Deploying with Docker Compose](https://www.better-t-stack.dev/docs/guides/docker).
-
-## Project Structure
-
-```
-your-league-coach/
-├── apps/
-│   ├── web/         # Frontend application (React + TanStack Router)
-│   └── server/      # Backend API (Hono, ORPC)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
-```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:server`: Start only the server
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
-- `bun run db:studio`: Open database studio UI
-- `cd apps/web && bun run desktop:dev`: Start Tauri desktop app in development
-- `cd apps/web && bun run desktop:build`: Build Tauri desktop app
-- `bun run docker:build`: Build the Docker Compose images
-- `bun run docker:up`: Build and start the Docker Compose stack
-- `bun run docker:logs`: Tail logs from the Docker Compose stack
-- `bun run docker:down`: Stop the Docker Compose stack
+The installer is built per OS (Tauri does not cross-compile): run `cd apps/web && bun run desktop:build` on Windows (MSI and NSIS `.exe`) and on macOS (`.dmg`). CI does this on both OS for every push.
 
 ## Desktop Installers
 
@@ -142,6 +99,6 @@ The installers are unsigned by design (no code signing), so the OS warns on firs
   2. macOS 14 and earlier: Control-click the app, then **Open**, then **Open**.
   3. Any version, from a terminal: `xattr -dr com.apple.quarantine "/Applications/Your League Coach.app"`.
 
-## Better Auth Schema Generation
+## Riot Games legal notice
 
-After changing auth plugins or schema options, run `bun run auth:generate` from the project root. The script runs the Better Auth CLI through `varlock run` from the owning app directory, loading the auth instance from `src/services.ts`. Review the schema changes, then use your ORM's migration workflow to apply them.
+Your League Coach isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc. See the [Riot Games policies](https://developer.riotgames.com/policies/general).

@@ -9,13 +9,11 @@ services:
         - web_env
         - server_env
     init: true
-    ports:
-      - "3000:3000"
     env_file:
       - path: apps/server/.env
         required: false
     environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/your-league-coach
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/your-league-coach
     healthcheck:
       test:
         [
@@ -31,6 +29,56 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/collector/Dockerfile
+    image: your-league-coach-collector
+    init: true
+    working_dir: /app
+    command: ["bun", "run", "--cwd", "packages/db", "db:migrate:deploy"]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/your-league-coach
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  collector:
+    build:
+      context: .
+      dockerfile: apps/collector/Dockerfile
+    image: your-league-coach-collector
+    init: true
+    env_file:
+      - apps/collector/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/your-league-coach
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    environment:
+      COACH_DOMAIN: ${COACH_DOMAIN:?COACH_DOMAIN is required}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - your-league-coach_caddy_data:/data
+      - your-league-coach_caddy_config:/config
+    depends_on:
+      server:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -39,9 +87,7 @@ services:
     environment:
       POSTGRES_DB: your-league-coach
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - your-league-coach_postgres_data:/var/lib/postgresql
     healthcheck:
@@ -53,6 +99,8 @@ services:
 
 volumes:
   your-league-coach_postgres_data:
+  your-league-coach_caddy_data:
+  your-league-coach_caddy_config:
 
 # BuildKit makes these available only while install/build commands run.
 secrets:

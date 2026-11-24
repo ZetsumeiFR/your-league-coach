@@ -1,0 +1,6 @@
+# Development override: publish Postgres on loopback only.
+# Use with: docker compose -f docker-compose.yml -f compose.dev.yml ...
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
