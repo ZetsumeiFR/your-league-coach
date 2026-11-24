@@ -24,6 +24,11 @@
       "linter": { "enabled": true }
     },
     {
+      // Build-time constant that apps/web/vite.config.ts defines.
+      "includes": ["apps/web/src/**"],
+      "javascript": { "globals": ["__YLC_MOCK_IPC__"] }
+    },
+    {
       "includes": ["packages/ui/src/components/input-group.tsx"],
       "linter": {
         "rules": {

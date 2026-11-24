@@ -32,9 +32,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({ meta: [{ title: "Your League Coach" }] }),
 });
 
-/** The mocked-IPC build is the QA surface: it shows the app as a user gets it. */
-const SHOW_DEVTOOLS =
-  import.meta.env.DEV && import.meta.env.VITE_YLC_MOCK_IPC !== "1";
+/** The mocked dev server is the QA surface: it shows the app as a user gets it. */
+const SHOW_DEVTOOLS = import.meta.env.DEV && !__YLC_MOCK_IPC__;
 /** Keeps the router toggle clear of the query toggle in the same corner. */
 const ROUTER_DEVTOOLS_TOGGLE = { style: { right: "4rem" } };
 

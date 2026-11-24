@@ -7,10 +7,10 @@ import { loadSettings } from "./lib/settings-store";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
 
-// Browser QA only, and only in the dev server. Both conditions are replaced at
-// build time, so a production build drops this branch together with the mock
-// and its fixtures, even when the flag is still set in the environment.
-if (import.meta.env.DEV && import.meta.env.VITE_YLC_MOCK_IPC === "1") {
+// Browser QA only. The constant comes from vite.config.ts: true in the dev
+// server started with VITE_YLC_MOCK_IPC=1, false in every build, which drops
+// this branch together with the mock and its fixtures.
+if (__YLC_MOCK_IPC__) {
   const { installDesktopMock } = await import("./lib/desktop/mock");
   installDesktopMock();
 }

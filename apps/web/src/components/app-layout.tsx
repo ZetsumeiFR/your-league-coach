@@ -3,6 +3,8 @@ import { AppShell } from "@your-league-coach/ui/components/blocks/app-shell-1/co
 import { AppSidebar } from "@your-league-coach/ui/components/blocks/app-shell-1/components/app-sidebar";
 import type { NavItem } from "@your-league-coach/ui/components/blocks/app-shell-1/components/nav-main";
 import { SidebarBrand } from "@your-league-coach/ui/components/blocks/app-shell-1/components/sidebar-brand";
+import { buttonVariants } from "@your-league-coach/ui/components/button";
+import { cn } from "@your-league-coach/ui/lib/utils";
 import {
   type ReactNode,
   useCallback,
@@ -13,6 +15,7 @@ import {
 import type { TranslationKey } from "@/i18n/translate";
 import { useT } from "@/i18n/use-t";
 
+import { ButtonIcon } from "./button-icon";
 import { appIcons } from "./icons";
 import { ModeToggle } from "./mode-toggle";
 import { ClientStatusBadge, PatchBadge } from "./status-badges";
@@ -42,6 +45,12 @@ const SETTINGS_SCREEN = {
   label: "nav.settings",
   to: "/settings",
 } as const satisfies Screen;
+
+/** Hidden below `sm` like the patch badge: at 320 px wide it no longer fits. */
+const HEADER_ICON_LINK = cn(
+  buttonVariants({ size: "icon", variant: "outline" }),
+  "hidden sm:inline-flex"
+);
 
 /** Below this width the sidebar starts as an icon rail. */
 const WIDE_WINDOW = "(min-width: 1024px)";
@@ -98,6 +107,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="ml-auto flex shrink-0 items-center gap-2 px-4">
           <ClientStatusBadge />
           <PatchBadge />
+          <Link
+            aria-label={t(SETTINGS_SCREEN.label)}
+            className={HEADER_ICON_LINK}
+            to={SETTINGS_SCREEN.to}
+          >
+            <ButtonIcon icon={SETTINGS_SCREEN.icon} />
+          </Link>
           <ModeToggle />
         </div>
       }
