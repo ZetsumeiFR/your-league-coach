@@ -53,6 +53,9 @@ pub enum Error {
     /// matches this exact text.
     #[error("NO_FREE_PAGE")]
     NoFreePage,
+    /// The client's answer to a new rune page does not name a page that is new.
+    #[error("LCU did not confirm the new rune page")]
+    UnconfirmedPage,
     #[error("ownership record unavailable")]
     Store,
     #[error("invalid import request")]

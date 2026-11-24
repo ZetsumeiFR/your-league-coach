@@ -109,6 +109,14 @@ fn page() -> RunePage {
     .expect("valid page")
 }
 
+fn item_set() -> ItemSet {
+    let core = Block {
+        title: "Core".into(),
+        items: vec![BlockItem { id: 6655, count: 1 }],
+    };
+    ItemSet::new(103, "YLC Ahri".into(), vec![core]).expect("valid item set")
+}
+
 async fn import(client: &LcuClient, record: &Record, uid: &str) {
     import_runes(client, record, &page())
         .await
@@ -116,12 +124,7 @@ async fn import(client: &LcuClient, record: &Record, uid: &str) {
     set_spells(client, [IGNITE, FLASH])
         .await
         .expect("spells set");
-    let core = Block {
-        title: "Core".into(),
-        items: vec![BlockItem { id: 6655, count: 1 }],
-    };
-    let set = ItemSet::new(103, "YLC Ahri".into(), vec![core]).expect("valid item set");
-    import_item_set(client, record, SUMMONER_ID, &set, uid)
+    import_item_set(client, record, SUMMONER_ID, &item_set(), uid)
         .await
         .expect("item set imported");
 }
@@ -264,4 +267,41 @@ async fn a_full_inventory_of_player_pages_is_left_untouched() {
     })
     .await
     .expect("no free page integration deadline");
+}
+
+#[tokio::test]
+async fn an_item_set_document_without_its_list_is_not_written_over() {
+    timeout(DEADLINE * 2, async {
+        let harness = Harness::start().await;
+        // What the client holds has no list of item sets at all.
+        let incomplete = json!({ "accountId": 123, "timestamp": 42 });
+        harness
+            .client
+            .put::<IgnoredAny>(SETS, &incomplete)
+            .await
+            .expect("incomplete item sets");
+        let before = harness.requests().await.len();
+
+        let record = Record(Mutex::new(Owned {
+            item_set_uids: vec!["ours".into()],
+            ..Owned::default()
+        }));
+        let result =
+            import_item_set(&harness.client, &record, SUMMONER_ID, &item_set(), "new-uid").await;
+        assert!(matches!(result, Err(Error::Json)), "{result:?}");
+        let log = harness.requests().await;
+        let attempt = &log[before..];
+        assert_eq!(writes(attempt), [], "{attempt:?}");
+        let held: Value = harness.client.get(SETS).await.expect("item sets");
+        assert_eq!(held, incomplete);
+        assert_eq!(record.0.lock().expect("record").item_set_uids, ["ours"]);
+        keep_evidence(
+            "incomplete-item-sets-requests",
+            "item set import while the client's document has no itemSets list: refused as invalid LCU JSON, nothing written, record unchanged",
+            attempt,
+        );
+        harness.stop().await;
+    })
+    .await
+    .expect("incomplete item sets integration deadline");
 }

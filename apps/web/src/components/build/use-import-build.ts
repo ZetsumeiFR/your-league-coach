@@ -32,7 +32,8 @@ const announce = (outcome: PartOutcome, t: Translate) => {
  * Sends a build to the League client and reports each part with its own
  * toast, what went wrong last. The rune page and the item set are named after
  * the champion; the name is for the player to read and proves nothing about
- * who created them.
+ * who created them. Resolves to null when nothing was sent because another
+ * import was running.
  */
 export const useImportBuild = () => {
   const t = useT();
@@ -40,7 +41,7 @@ export const useImportBuild = () => {
   const { champSelectSession } = useDesktop();
 
   return useCallback(
-    async (build: BuildRecommendation): Promise<void> => {
+    async (build: BuildRecommendation): Promise<PartOutcome[] | null> => {
       const champion =
         findChampion(build.championId)?.name ?? String(build.championId);
       const outcomes = await importBuild({
@@ -57,6 +58,7 @@ export const useImportBuild = () => {
       for (const outcome of announcementOrder(outcomes ?? [])) {
         announce(outcome, t);
       }
+      return outcomes;
     },
     [champSelectSession, findChampion, t]
   );

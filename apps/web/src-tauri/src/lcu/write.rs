@@ -168,7 +168,9 @@ struct Inventory {
 
 /// Replaces the pages recorded as ours with `page`, made the current one.
 /// `Error::NoFreePage` when every slot holds a page that is not ours: no page
-/// is deleted then.
+/// is deleted then. `Error::UnconfirmedPage` when the client's answer does not
+/// name a page that is new: nothing is recorded, and whatever page the client
+/// created is the player's from then on.
 pub async fn import_runes(
     lcu: &impl Lcu,
     store: &impl OwnedStore,
@@ -210,6 +212,14 @@ pub async fn import_runes(
         current: true,
     };
     let created: Page = decode(&send(lcu, Method::POST, PAGES_PATH, &new_page).await?)?;
+    // The id is ours only when the client had no such page before this import
+    // and has it now. Taken on the answer's word, a wrong id would give a page
+    // of the player's to the next import to delete.
+    let now: Vec<Page> = read(lcu, PAGES_PATH).await?;
+    let is_in = |pages: &[Page]| pages.iter().any(|page| page.id == created.id);
+    if is_in(&pages) || !is_in(&now) {
+        return Err(Error::UnconfirmedPage);
+    }
     owned.rune_page_ids.push(created.id);
     store.save(&owned)
 }
@@ -369,6 +379,11 @@ fn uid_of(set: &RawValue) -> Option<String> {
 /// Writes the player's item sets back with `set` in place of the sets recorded
 /// as ours. Every other set, and every other field of the document, goes back
 /// as the exact text the client sent.
+///
+/// The client has no conditional write: a change the player saves between
+/// this read and this write is lost. Nothing is asked of the client and
+/// nothing is awaited between the two, to keep that window as short as the
+/// two requests allow.
 pub async fn import_item_set(
     lcu: &impl Lcu,
     store: &impl OwnedStore,
@@ -378,10 +393,9 @@ pub async fn import_item_set(
 ) -> Result<(), Error> {
     let path = format!("/lol-item-sets/v1/item-sets/{summoner_id}/sets");
     let mut document: BTreeMap<String, Box<RawValue>> = read(lcu, &path).await?;
-    let sets: Vec<Box<RawValue>> = match document.get("itemSets") {
-        Some(sets) => decode(sets)?,
-        None => Vec::new(),
-    };
+    // A document without its list is not a player without item sets: writing
+    // one back would erase theirs.
+    let sets: Vec<Box<RawValue>> = decode(document.get("itemSets").ok_or(Error::Json)?)?;
     let mut owned = store.load();
     let mut replaced = Vec::new();
     let mut kept = Vec::with_capacity(sets.len() + 1);
@@ -544,6 +558,8 @@ mod tests {
         pages: Vec<Value>,
         slots: usize,
         next_page_id: i64,
+        /// The id a new page is answered with, whatever id it was given.
+        claimed_page_id: Option<i64>,
         sets: String,
         draft: Option<String>,
         /// Requests of this method are answered with this status.
@@ -611,20 +627,31 @@ mod tests {
                 .collect()
         }
 
-        /// Every request that changes the client, as "METHOD path".
-        fn writes(&self) -> Vec<String> {
+        /// Every request, as "METHOD path".
+        fn asked(&self) -> Vec<String> {
             self.state()
                 .requests
                 .iter()
-                .filter(|request| request.method != Method::GET)
                 .map(|request| format!("{} {}", request.method, request.path))
                 .collect()
         }
 
+        /// Every request that changes the client.
+        fn writes(&self) -> Vec<String> {
+            self.asked()
+                .into_iter()
+                .filter(|request| !request.starts_with("GET "))
+                .collect()
+        }
+
+        /// The body of the last request that carried one.
         fn last_body(&self) -> String {
-            let state = self.state();
-            let last = state.requests.last().expect("a request");
-            last.body.clone().expect("a request body")
+            self.state()
+                .requests
+                .iter()
+                .rev()
+                .find_map(|request| request.body.clone())
+                .expect("a request body")
         }
     }
 
@@ -645,6 +672,9 @@ mod tests {
                     page["id"] = json!(self.next_page_id);
                     self.next_page_id += 1;
                     self.pages.push(page.clone());
+                    if let Some(claimed) = self.claimed_page_id {
+                        page["id"] = json!(claimed);
+                    }
                     Ok(page.to_string())
                 }
                 ("DELETE", PAGES_PATH) => panic!("the app must never delete every page"),
@@ -872,13 +902,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_answer_naming_a_page_that_was_already_there_is_not_recorded() {
+        let client = Client::with_pages(&[(101, "Mine"), (102, "Also mine")], 4);
+        let record = Record::default();
+        // The client creates page 104 and answers with the id of a page of the player's.
+        client.state().claimed_page_id = Some(101);
+        let result = import_runes(&client, &record, &page()).await;
+        assert!(matches!(result, Err(Error::UnconfirmedPage)), "{result:?}");
+        assert_eq!(client.writes(), ["POST /lol-perks/v1/pages"]);
+        assert_eq!(record.load().rune_page_ids, [] as [i64; 0]);
+
+        client.state().claimed_page_id = None;
+        import_runes(&client, &record, &page())
+            .await
+            .expect("a free slot");
+        assert_eq!(
+            client.writes(),
+            ["POST /lol-perks/v1/pages", "POST /lol-perks/v1/pages"]
+        );
+        assert_eq!(client.page_ids(), [101, 102, 104, 105]);
+        assert_eq!(record.load().rune_page_ids, [105]);
+    }
+
+    #[tokio::test]
+    async fn an_answer_naming_a_page_the_client_does_not_have_is_not_recorded() {
+        let client = Client::with_pages(&[(101, "Mine")], 3);
+        let record = Record::default();
+        // An id no page has yet could be given to a page of the player's later.
+        client.state().claimed_page_id = Some(999);
+        let result = import_runes(&client, &record, &page()).await;
+        assert!(matches!(result, Err(Error::UnconfirmedPage)), "{result:?}");
+        assert_eq!(client.writes(), ["POST /lol-perks/v1/pages"]);
+        assert_eq!(record.load().rune_page_ids, [] as [i64; 0]);
+    }
+
+    #[tokio::test]
     async fn replaces_its_own_item_set_and_sends_every_other_one_back_untouched() {
         let client = Client::with_sets(&[PLAYER_SET, PLAYER_YLC_SET, OUR_SET]);
         let record = Record::of(&[], &["ours", "gone"]);
         import_item_set(&client, &record, 123, &item_set(), "new-uid")
             .await
             .expect("item sets written");
-        assert_eq!(client.writes(), [format!("PUT {SETS_PATH}")]);
+        // The write follows the read with no other request in between.
+        assert_eq!(
+            client.asked(),
+            [format!("GET {SETS_PATH}"), format!("PUT {SETS_PATH}")]
+        );
         let body = client.last_body();
         assert!(
             body.starts_with(&format!(
@@ -931,6 +1000,33 @@ mod tests {
         assert!(body.contains(PLAYER_SET), "{body}");
         assert!(!body.contains(r#""ours""#), "{body}");
         assert!(!body.contains("lost-uid"), "{body}");
+        assert_eq!(record.load().item_set_uids, ["new-uid"]);
+    }
+
+    #[tokio::test]
+    async fn an_item_set_document_without_its_list_is_never_written_over() {
+        let record = Record::of(&[], &["ours"]);
+        // No list, or a null one: nothing says the player has no item sets.
+        for document in [
+            r#"{"accountId":123,"timestamp":42}"#,
+            r#"{"accountId":123,"itemSets":null,"timestamp":42}"#,
+        ] {
+            let client = Client(StdMutex::new(ClientState {
+                sets: document.into(),
+                ..ClientState::default()
+            }));
+            let result = import_item_set(&client, &record, 123, &item_set(), "new-uid").await;
+            assert!(matches!(result, Err(Error::Json)), "{document} {result:?}");
+            assert_eq!(client.writes(), [] as [&str; 0]);
+        }
+        assert_eq!(record.load().item_set_uids, ["ours"]);
+
+        // An empty list does say so.
+        let client = Client::with_sets(&[]);
+        import_item_set(&client, &record, 123, &item_set(), "new-uid")
+            .await
+            .expect("item sets written");
+        assert_eq!(client.writes(), [format!("PUT {SETS_PATH}")]);
         assert_eq!(record.load().item_set_uids, ["new-uid"]);
     }
 

@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import type { BuildRecommendation } from "@your-league-coach/lol-data/types";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import {
-  dueAutoImport,
-  isSameMemory,
-  markAutoImported,
-  NO_AUTO_IMPORT,
-  observeDraft,
+  aramChampionId,
+  createAutoImporter,
+  sightingOf,
 } from "@/lib/build/auto-import";
-import { buildChampionId, buildInput } from "@/lib/build/request";
+import { buildInput } from "@/lib/build/request";
+import { useImportState } from "@/lib/desktop/import";
 import { useDesktop } from "@/lib/desktop/store";
 import { usePickedRole } from "@/lib/draft/picked-role";
-import { draftMode } from "@/lib/draft/request";
 import { useSettings } from "@/lib/settings-store";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 
@@ -22,48 +21,57 @@ const ARAM_SETTLE_MS = 1000;
 
 /**
  * Imports the build by itself when the setting is on, whatever screen is
- * open: `observeDraft` says when. Renders nothing.
+ * open: the importer says when and sends one build at a time. Renders nothing.
  */
 export function AutoImport() {
   const { champSelect, champSelectSession, phase } = useDesktop();
   const { autoImport } = useSettings();
+  const { isImporting } = useImportState();
   const pickedRole = usePickedRole();
-  const importBuild = useImportBuild();
+  const send = useImportBuild();
+  const [importer] = useState(createAutoImporter<BuildRecommendation>);
   const draft = phase === "ChampSelect" ? champSelect : null;
-  const mode = draft ? draftMode(draft.queueId) : "unsupported";
   const settledAramChampionId = useDebouncedValue(
-    draft && mode === "aram" ? buildChampionId(draft) : 0,
+    draft ? aramChampionId(draft) : 0,
     ARAM_SETTLE_MS
   );
 
-  const [memory, setMemory] = useState(NO_AUTO_IMPORT);
-  if (draft) {
-    const seen = observeDraft(memory, {
-      autoImport,
-      championId:
-        mode === "aram" ? settledAramChampionId : draft.localPick.championId,
-      completed: draft.localPick.completed,
-      mode,
-      session: champSelectSession,
-    });
-    if (!isSameMemory(seen, memory)) {
-      setMemory(seen);
-    }
-  }
-
-  const dueChampionId = draft ? dueAutoImport(memory) : 0;
+  const dueChampionId = useSyncExternalStore(
+    importer.subscribe,
+    importer.dueChampionId
+  );
   const state = useBuild(
     draft && dueChampionId !== 0 ? buildInput(draft, pickedRole) : null
   );
   const build = state.status === "ready" && !state.isStale ? state.build : null;
 
   useEffect(() => {
-    if (build === null || build.championId !== dueChampionId) {
-      return;
+    importer.update({
+      build,
+      seen: draft
+        ? sightingOf(draft, {
+            autoImport,
+            session: champSelectSession,
+            settledAramChampionId,
+          })
+        : null,
+      send,
+    });
+  }, [
+    autoImport,
+    build,
+    champSelectSession,
+    draft,
+    importer,
+    send,
+    settledAramChampionId,
+  ]);
+
+  useEffect(() => {
+    if (!isImporting) {
+      importer.retry();
     }
-    setMemory(markAutoImported);
-    importBuild(build);
-  }, [build, dueChampionId, importBuild]);
+  }, [importer, isImporting]);
 
   return null;
 }

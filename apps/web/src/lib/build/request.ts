@@ -7,14 +7,23 @@ import { assignedRole, draftMode } from "../draft/request";
 const MAX_ALLIES = 4;
 const MAX_ENEMIES = 5;
 
+const localMember = (draft: DraftState) =>
+  draft.myTeam.find(({ cellId }) => cellId === draft.localPlayerCellId);
+
+/**
+ * The champion the client holds for the local player's seat: in ARAM, the one
+ * assigned to them. A champion they only declare is not in it. 0 while there
+ * is none.
+ */
+export const assignedChampionId = (draft: DraftState): number =>
+  localMember(draft)?.championId ?? 0;
+
 /**
  * The champion the build is for: the one the local player has locked or is
  * hovering, else the one they have declared. 0 while there is none.
  */
 export const buildChampionId = (draft: DraftState): number => {
-  const local = draft.myTeam.find(
-    ({ cellId }) => cellId === draft.localPlayerCellId
-  );
+  const local = localMember(draft);
   return (
     draft.localPick.championId ||
     local?.championId ||
