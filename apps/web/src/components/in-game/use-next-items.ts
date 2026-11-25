@@ -1,4 +1,4 @@
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { hashKey, skipToken, useQuery } from "@tanstack/react-query";
 import type {
   NextItems,
   NextItemsInput,
@@ -32,23 +32,70 @@ export type NextItemsState =
       problem: RefreshProblem | null;
     };
 
+/** One request of a board for next items. */
+export interface NextItemsAsk {
+  /**
+   * Unique among the asks of every board, so an answer serves the ask it was
+   * given for and no other: not a later return to the same items, not a board
+   * shown again.
+   */
+  id: number;
+  input: NextItemsInput | null;
+}
+
+let lastAskId = 0;
+
 /**
- * The next items for `input`. The same items give the same request and an
- * answer never goes stale, so nothing is asked again until the player's items
- * or the enemy's change: not at each tick of the game, not when the window
- * regains focus. While the answer for changed items is asked, and when it
- * cannot be had, the last answer of this game stays, marked as being for
- * earlier items. The hook lives as long as the game is on screen, so no
- * answer outlives its game. No input, no request.
+ * The board's ask for `input` after its `previous` one: the same ask while
+ * the request is the same, a new one at each change of the player's items or
+ * the enemy's, a return to earlier items included.
+ */
+export const nextAsk = (
+  previous: NextItemsAsk | null,
+  input: NextItemsInput | null
+): NextItemsAsk => {
+  if (previous !== null && hashKey([previous.input]) === hashKey([input])) {
+    return previous;
+  }
+  lastAskId += 1;
+  return { input, id: lastAskId };
+};
+
+/**
+ * The query of one ask. It never goes stale, so an ask is sent once: not again
+ * at each tick of the game, nor when the window regains focus.
+ */
+export const nextItemsQuery = (
+  { id, input }: NextItemsAsk,
+  isConfigured: boolean
+) => ({
+  ...orpc.coach.nextItems.queryOptions({
+    input: input ?? skipToken,
+    queryKey: [
+      ...orpc.coach.nextItems.queryKey({ input: input ?? skipToken }),
+      id,
+    ],
+  }),
+  enabled: isConfigured && input !== null,
+  retry: retryUnreachableOnce,
+  staleTime: Number.POSITIVE_INFINITY,
+});
+
+/**
+ * The next items for `input`, asked once at each change of the player's items
+ * or the enemy's. While the answer for changed items is asked, and when it
+ * cannot be had, the last answer of this board stays, marked as being for
+ * earlier items, with the failure beside it. The hook lives as long as the
+ * game is on screen, so no answer outlives its game. No input, no request.
  */
 export const useNextItems = (input: NextItemsInput | null): NextItemsState => {
   const isConfigured = isConnectionConfigured(useSettings());
-  const query = useQuery({
-    ...orpc.coach.nextItems.queryOptions({ input: input ?? skipToken }),
-    enabled: isConfigured && input !== null,
-    retry: retryUnreachableOnce,
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+  const [lastAsk, setLastAsk] = useState(() => nextAsk(null, input));
+  const ask = nextAsk(lastAsk, input);
+  if (ask !== lastAsk) {
+    setLastAsk(ask);
+  }
+  const query = useQuery(nextItemsQuery(ask, isConfigured));
   const [lastAnswer, setLastAnswer] = useState<NextItems | null>(null);
   if (query.data !== undefined && query.data !== lastAnswer) {
     setLastAnswer(query.data);

@@ -37,6 +37,17 @@ const isId = (value: number): boolean => Number.isInteger(value) && value > 0;
 const ascending = (ids: readonly number[]): number[] =>
   ids.filter(isId).toSorted((a, b) => a - b);
 
+/**
+ * The owned items as the game counts them, each one of a stack. Past what the
+ * API accepts the repeats go first: the answer leaves out the items owned,
+ * whatever their count, so none of them may be dropped.
+ */
+const ownedItemsOf = (ids: readonly number[]): number[] => {
+  const owned = ascending(ids);
+  const repeats = owned.filter((id, index) => id === owned[index - 1]);
+  return ascending([...new Set(owned), ...repeats].slice(0, MAX_OWNED_ITEMS));
+};
+
 export interface LocalPlayer {
   championId: number;
   draft: DraftState | null;
@@ -47,9 +58,9 @@ export interface LocalPlayer {
  * The request for the local player's next items, or null for a game the
  * statistics do not cover. It holds what the answer depends on and nothing
  * else, in one spelling, so every snapshot of a game gives the same request
- * until the player's items or the enemy's change. An owned item counts once
- * however many the player holds, because the answer only leaves out what is
- * owned. Every enemy item counts, each one of a stack included.
+ * until the player's items or the enemy's change. Items count as the game
+ * counts them, each one of a stack included, so using one of a stack is a
+ * change.
  */
 export const nextItemsInput = (
   game: LiveGame,
@@ -64,7 +75,7 @@ export const nextItemsInput = (
     queueId,
     role: draft ? buildRole(draft, pickedRole) : null,
     championId,
-    ownedItems: ascending([...new Set(game.myItems)]).slice(0, MAX_OWNED_ITEMS),
+    ownedItems: ownedItemsOf(game.myItems),
     enemyChampions: teamChampionIds(enemyChampions.filter(isId), MAX_ENEMIES),
     enemyItems: ascending(game.enemies.flatMap((enemy) => enemy.items)).slice(
       0,

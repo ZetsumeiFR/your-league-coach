@@ -45,7 +45,7 @@ export function AlwaysOnTopToggle() {
       {t("inGame.alwaysOnTop.label")}
       <span aria-hidden="true" className="grid justify-items-end">
         <span className={cn(STATE_CELL, isOnTop && "invisible")}>
-          <Badge variant="outline">{t("inGame.alwaysOnTop.off")}</Badge>
+          <Badge variant="invert-light">{t("inGame.alwaysOnTop.off")}</Badge>
         </span>
         <span className={cn(STATE_CELL, !isOnTop && "invisible")}>
           <Badge variant="success-light">{t("inGame.alwaysOnTop.on")}</Badge>
