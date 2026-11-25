@@ -16,7 +16,11 @@ export const CRAWL_QUEUE_WEIGHTS = [
   [QUEUES.NORMAL_DRAFT, 10],
 ] as const;
 
+/** Backoff delays for retrying a failed Riot request with a 5xx response, in milliseconds. */
 export const SERVER_RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
+/** Maximum retries for a 429 rate-limit response, in addition to the initial request. */
 export const RATE_LIMIT_RETRIES = 3;
+/** Wait used for a 429 response when Riot omits Retry-After, in milliseconds. */
 export const DEFAULT_RETRY_AFTER_MS = SECOND_MS;
+/** Per-attempt timeout for Riot HTTP requests, in milliseconds. */
 export const REQUEST_TIMEOUT_MS = 10 * SECOND_MS;

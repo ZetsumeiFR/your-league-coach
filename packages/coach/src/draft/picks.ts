@@ -19,6 +19,7 @@ import {
   NEUTRAL_WIN_RATE,
   POOL_BONUS_CAP,
   PRIOR_STRENGTH,
+  RECENT_FORM_MULTIPLIER,
   WEIGHTS,
 } from "../constants";
 import { inferEnemyRoles, type RoleDistribution } from "../stats/roles";
@@ -77,7 +78,7 @@ function poolBonus(entry: PlayerPoolEntry | undefined): number {
     (Math.min(recentGames, DRAFT_POOL.saturationGames) /
       DRAFT_POOL.saturationGames) *
     (recentWinRate - NEUTRAL_WIN_RATE) *
-    2;
+    RECENT_FORM_MULTIPLIER;
   return Math.min(POOL_BONUS_CAP, Math.max(-POOL_BONUS_CAP, mastery + form));
 }
 
