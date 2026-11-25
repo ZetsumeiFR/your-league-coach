@@ -51,6 +51,10 @@ export const MIN_BUILD_PICK_RATE = 0.05;
 export const MAX_SITUATIONAL_ITEMS = 4;
 /** Minimum profile-specific item games before preferring its result. */
 export const MIN_ITEM_PROFILE_GAMES = 200;
+/** Fallback win rate for build rankings without a valid sample; matches a neutral prior. */
+export const BUILD_NEUTRAL_WIN_RATE = 0.5;
+/** Recent win-rate deviation multiplier in the player-pool form bonus; keeps its tuned impact. */
+export const RECENT_FORM_MULTIPLIER = 2;
 /** Dominant-damage share and trait counts required to trigger composition rules. */
 export const ENEMY_BUILD_THRESHOLDS = {
   damageShare: 0.65,
