@@ -5,6 +5,8 @@ import type {
 } from "@your-league-coach/lol-data/types";
 import { useCallback, useState } from "react";
 
+import type { LiveGame } from "@/lib/desktop/events";
+import { type GameItems, gameItems } from "@/lib/in-game/request";
 import { isConnectionConfigured } from "@/lib/settings";
 import { useSettings } from "@/lib/settings-store";
 import { useStickyFailure } from "@/lib/use-sticky-failure";
@@ -41,24 +43,34 @@ export interface NextItemsAsk {
    */
   id: number;
   input: NextItemsInput | null;
+  /** The game's items when the ask was made, all of them, before any cut. */
+  items: GameItems;
 }
 
 let lastAskId = 0;
 
 /**
- * The board's ask for `input` after its `previous` one: the same ask while
- * the request is the same, a new one at each change of the player's items or
- * the enemy's, a return to earlier items included.
+ * The board's ask for `input`, the request for `game`, after its `previous`
+ * one: the same ask while the request and the game's items are the same, a
+ * new one at each change of the player's items or the enemy's, a return to
+ * earlier items included. A change is judged on every item of the game, not
+ * on the request, which the API's limits may cut: a change the cut hides is
+ * still asked, with the same request.
  */
 export const nextAsk = (
   previous: NextItemsAsk | null,
-  input: NextItemsInput | null
+  input: NextItemsInput | null,
+  game: LiveGame
 ): NextItemsAsk => {
-  if (previous !== null && hashKey([previous.input]) === hashKey([input])) {
+  const items = gameItems(game);
+  if (
+    previous !== null &&
+    hashKey([previous.input, previous.items]) === hashKey([input, items])
+  ) {
     return previous;
   }
   lastAskId += 1;
-  return { input, id: lastAskId };
+  return { id: lastAskId, input, items };
 };
 
 /**
@@ -82,16 +94,20 @@ export const nextItemsQuery = (
 });
 
 /**
- * The next items for `input`, asked once at each change of the player's items
- * or the enemy's. While the answer for changed items is asked, and when it
- * cannot be had, the last answer of this board stays, marked as being for
- * earlier items, with the failure beside it. The hook lives as long as the
- * game is on screen, so no answer outlives its game. No input, no request.
+ * The next items for `input`, the request for `game`, asked once at each
+ * change of the game's items, the player's or the enemy's. While the answer
+ * for changed items is asked, and when it cannot be had, the last answer of
+ * this board stays, marked as being for earlier items, with the failure
+ * beside it. The hook lives as long as the game is on screen, so no answer
+ * outlives its game. No input, no request.
  */
-export const useNextItems = (input: NextItemsInput | null): NextItemsState => {
+export const useNextItems = (
+  input: NextItemsInput | null,
+  game: LiveGame
+): NextItemsState => {
   const isConfigured = isConnectionConfigured(useSettings());
-  const [lastAsk, setLastAsk] = useState(() => nextAsk(null, input));
-  const ask = nextAsk(lastAsk, input);
+  const [lastAsk, setLastAsk] = useState(() => nextAsk(null, input, game));
+  const ask = nextAsk(lastAsk, input, game);
   if (ask !== lastAsk) {
     setLastAsk(ask);
   }

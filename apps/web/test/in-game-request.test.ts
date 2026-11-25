@@ -51,6 +51,13 @@ const fixtureGame = (isArmored: boolean): LiveGame => {
 const game = fixtureGame(false);
 const armored = fixtureGame(true);
 const onePotionLeft: LiveGame = { ...game, myItems: [1056, 2003] };
+/** Twelve entries, more than the 10 owned entries the API accepts. */
+const stocked: LiveGame = {
+  ...game,
+  myItems: [
+    1056, 2003, 2003, 2003, 2003, 2003, 2055, 2055, 3020, 3157, 3340, 6655,
+  ],
+};
 const unseenDraft: LocalPlayer = {
   championId: AHRI,
   draft: null,
@@ -138,12 +145,6 @@ describe("next items request", () => {
     expect(request?.enemyChampions).toEqual([1, 2, 3, 4, 5]);
     expect(request?.enemyItems).toHaveLength(50);
 
-    const stocked: LiveGame = {
-      ...game,
-      myItems: [
-        1056, 2003, 2003, 2003, 2003, 2003, 2055, 2055, 3020, 3157, 3340, 6655,
-      ],
-    };
     const kept = nextItemsInput(stocked, unseenDraft)?.ownedItems ?? [];
     expect(kept).toHaveLength(10);
     expect([...new Set(kept)]).toEqual([...new Set(stocked.myItems)]);
@@ -251,7 +252,7 @@ const board = () => {
       isServerUp = isUp;
     },
     show: async (snapshot: LiveGame) => {
-      ask = nextAsk(ask, nextItemsInput(snapshot, unseenDraft));
+      ask = nextAsk(ask, nextItemsInput(snapshot, unseenDraft), snapshot);
       const { input } = ask;
       observer.setOptions({
         ...nextItemsQuery(ask, true),
@@ -294,5 +295,31 @@ describe("next items requests", () => {
     const recovered = await view.retry();
     expect(view.asked).toHaveLength(5);
     expect(recovered.data).toBe(view.answers[2]);
+  });
+
+  it("go out for a change of items the request cuts away, and fail visibly while the server is down", async () => {
+    const onePotionUsed: LiveGame = {
+      ...stocked,
+      myItems: [
+        1056, 2003, 2003, 2003, 2003, 2055, 2055, 3020, 3157, 3340, 6655,
+      ],
+    };
+    expect(nextItemsInput(onePotionUsed, unseenDraft)).toEqual(
+      nextItemsInput(stocked, unseenDraft)
+    );
+
+    const online = board();
+    await online.show(stocked);
+    const changed = await online.show(onePotionUsed);
+    expect(online.asked).toHaveLength(2);
+    expect(changed.data).toBe(online.answers[1]);
+
+    const offline = board();
+    await offline.show(stocked);
+    offline.setServerUp(false);
+    const down = await offline.show(onePotionUsed);
+    expect(offline.asked).toHaveLength(3);
+    expect(down.data).toBeUndefined();
+    expect(classifyServerError(down.error)).toBe("unreachable");
   });
 });

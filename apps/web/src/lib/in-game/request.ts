@@ -34,8 +34,10 @@ export const liveQueueId = (
 
 const isId = (value: number): boolean => Number.isInteger(value) && value > 0;
 
+const byValue = (a: number, b: number): number => a - b;
+
 const ascending = (ids: readonly number[]): number[] =>
-  ids.filter(isId).toSorted((a, b) => a - b);
+  ids.filter(isId).toSorted(byValue);
 
 /**
  * The owned items as the game counts them, each one of a stack. Past what the
@@ -48,6 +50,23 @@ const ownedItemsOf = (ids: readonly number[]): number[] => {
   return ascending([...new Set(owned), ...repeats].slice(0, MAX_OWNED_ITEMS));
 };
 
+/** Every item of a game, owned and enemy, as the game counts them. */
+export interface GameItems {
+  enemy: number[];
+  owned: number[];
+}
+
+/**
+ * The items a change of items is judged on: all of them, as the game counts
+ * them, before the request is cut to what the API accepts, so a change the
+ * cut hides is still a change. Sorted, so moving an item to another slot is
+ * not one.
+ */
+export const gameItems = (game: LiveGame): GameItems => ({
+  enemy: game.enemies.flatMap((enemy) => enemy.items).toSorted(byValue),
+  owned: game.myItems.toSorted(byValue),
+});
+
 export interface LocalPlayer {
   championId: number;
   draft: DraftState | null;
@@ -57,10 +76,10 @@ export interface LocalPlayer {
 /**
  * The request for the local player's next items, or null for a game the
  * statistics do not cover. It holds what the answer depends on and nothing
- * else, in one spelling, so every snapshot of a game gives the same request
- * until the player's items or the enemy's change. Items count as the game
- * counts them, each one of a stack included, so using one of a stack is a
- * change.
+ * else, in one spelling: items count as the game counts them, each one of a
+ * stack included, sorted so their slots do not matter. Past what the API
+ * accepts the request is cut, so two snapshots with different items can give
+ * the same request: gameItems tells them apart.
  */
 export const nextItemsInput = (
   game: LiveGame,

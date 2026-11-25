@@ -37,7 +37,8 @@ export function GameBoard({ draft, game }: GameBoardProps) {
   const champion = useChampionLookup()(championId ?? 0);
   const role = draft ? buildRole(draft, pickedRole) : null;
   const state = useNextItems(
-    championId ? nextItemsInput(game, { championId, draft, pickedRole }) : null
+    championId ? nextItemsInput(game, { championId, draft, pickedRole }) : null,
+    game
   );
 
   return (
