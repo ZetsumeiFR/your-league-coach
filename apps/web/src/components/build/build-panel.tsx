@@ -9,17 +9,11 @@ import {
   AlertTitle,
 } from "@your-league-coach/ui/components/reui/alert";
 import { Badge } from "@your-league-coach/ui/components/reui/badge";
-import {
-  Frame,
-  FrameDescription,
-  FrameHeader,
-  FramePanel,
-  FrameTitle,
-} from "@your-league-coach/ui/components/reui/frame";
+import { Frame, FramePanel } from "@your-league-coach/ui/components/reui/frame";
 import { Skeleton } from "@your-league-coach/ui/components/skeleton";
 import { type ReactNode, useId } from "react";
 
-import { ChampionAvatar } from "@/components/champion-avatar";
+import { ChampionFrameHeader } from "@/components/champion-frame-header";
 import { appIcons } from "@/components/icons";
 import { IdleState } from "@/components/idle-state";
 import {
@@ -99,29 +93,18 @@ function BuildFrame({
   const champion = useChampionLookup()(championId);
   const name =
     champion?.name ?? t("draft.teams.unknownChampion", { id: championId });
-  const subject = roleLabel ? `${name} \u00b7 ${roleLabel}` : name;
 
   return (
     <section aria-busy={busy} aria-labelledby={titleId}>
       <Frame>
-        <FrameHeader>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <ChampionAvatar champion={champion} />
-              <div className="flex min-w-0 flex-col">
-                <FrameTitle>
-                  <h2 id={titleId}>{t("build.title")}</h2>
-                </FrameTitle>
-                <FrameDescription>{subject}</FrameDescription>
-              </div>
-            </div>
-            {actions ? (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                {actions}
-              </div>
-            ) : null}
-          </div>
-        </FrameHeader>
+        <ChampionFrameHeader
+          actions={actions}
+          champion={champion}
+          name={name}
+          roleLabel={roleLabel}
+          title={t("build.title")}
+          titleId={titleId}
+        />
         <div className="@container">
           <div className="grid @3xl:grid-cols-2 gap-(--frame-gap)">
             <FramePanel>{runes}</FramePanel>

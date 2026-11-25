@@ -50,10 +50,14 @@ import {
   NO_FREE_PAGE,
 } from "./events";
 
+/** The one command of Tauri's window plugin the app invokes. */
+const SET_ALWAYS_ON_TOP = "plugin:window|set_always_on_top";
+type RecordedCommandName = DesktopCommandName | typeof SET_ALWAYS_ON_TOP;
+
 export interface YlcMock {
   /**
-   * Desktop commands the app invoked, in order. Store traffic is left out: it
-   * carries the access key.
+   * Desktop and window commands the app invoked, in order. Store traffic is
+   * left out: it carries the access key.
    */
   calls: { args: unknown; command: string }[];
   /** Emits one backend event; the payload is checked against its contract. */
@@ -65,7 +69,7 @@ export interface YlcMock {
    * Commands named here fail with the given text, as the backend does when the
    * client refuses a request.
    */
-  failures: Partial<Record<DesktopCommandName, string>>;
+  failures: Partial<Record<RecordedCommandName, string>>;
   /**
    * Replays a fake Riot client scenario ("champ-select-ranked",
    * "champ-select-aram", "champ-select-arena", "live-game",
@@ -171,6 +175,11 @@ const itemSetSchema = z.object({
     })
   ),
 }) satisfies z.ZodType<DesktopCommands["lcu_import_item_set"]["args"]>;
+
+const alwaysOnTopSchema = z.object({
+  label: z.literal("main"),
+  value: z.boolean(),
+});
 
 const storeLoadSchema = z.object({ path: z.string() });
 const storeKeySchema = z.object({ key: z.string(), rid: z.number() });
@@ -399,10 +408,20 @@ export const installDesktopMock = () => {
       return null;
     },
   };
+  const recordedCommands: Record<
+    RecordedCommandName,
+    (args: unknown) => unknown
+  > = {
+    ...desktopCommands,
+    [SET_ALWAYS_ON_TOP]: (args) => {
+      alwaysOnTopSchema.parse(args);
+      return null;
+    },
+  };
   const storeCommands = createStoreCommands();
 
-  const isDesktopCommand = (command: string): command is DesktopCommandName =>
-    Object.hasOwn(desktopCommands, command);
+  const isRecordedCommand = (command: string): command is RecordedCommandName =>
+    Object.hasOwn(recordedCommands, command);
   const isStoreCommand = (
     command: string
   ): command is keyof typeof storeCommands =>
@@ -414,13 +433,13 @@ export const installDesktopMock = () => {
       if (isStoreCommand(command)) {
         return storeCommands[command](args);
       }
-      if (isDesktopCommand(command)) {
+      if (isRecordedCommand(command)) {
         calls.push({ args, command });
         const failure = mock.failures[command];
         if (failure !== undefined) {
           throw new Error(failure);
         }
-        return desktopCommands[command](args);
+        return recordedCommands[command](args);
       }
       throw new Error(`Mock IPC: unknown command "${command}"`);
     },

@@ -8,7 +8,7 @@ import {
 
 import type { Translate } from "@/i18n/translate";
 import { useT } from "@/i18n/use-t";
-import type { OrderStep, StackedItem } from "@/lib/build/items";
+import { type OrderStep, stackName } from "@/lib/build/items";
 import type { FindAsset } from "@/lib/ddragon";
 
 import { AssetIcon } from "./asset-icon";
@@ -34,11 +34,6 @@ interface ItemOrderProps {
  */
 export function ItemOrder({ findItem, steps }: ItemOrderProps) {
   const t = useT();
-  const nameOf = ({ count, itemId }: StackedItem): string => {
-    const item =
-      findItem(itemId)?.name ?? t("build.unknown.item", { id: itemId });
-    return count > 1 ? t("build.items.stack", { item, count }) : item;
-  };
 
   return (
     <div className="overflow-x-auto">
@@ -62,7 +57,9 @@ export function ItemOrder({ findItem, steps }: ItemOrderProps) {
                   ))}
                 </span>
                 <span className="line-clamp-2 h-8 max-w-28 text-muted-foreground text-xs">
-                  {step.items.map(nameOf).join(", ")}
+                  {step.items
+                    .map((stack) => stackName(stack, findItem, t))
+                    .join(", ")}
                 </span>
               </div>
               {index < steps.length - 1 ? <StepperSeparator /> : null}

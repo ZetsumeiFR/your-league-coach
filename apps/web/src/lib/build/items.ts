@@ -3,6 +3,8 @@ import type {
   BuildRecommendation,
 } from "@your-league-coach/lol-data/types";
 
+import type { Translate } from "../../i18n/translate";
+import type { FindAsset } from "../ddragon";
 import type { ItemSetBlock } from "../desktop/events";
 
 export interface StackedItem {
@@ -16,6 +18,17 @@ export const stackItems = (itemIds: readonly number[]): StackedItem[] => {
     counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
   }
   return [...counts].map(([itemId, count]) => ({ itemId, count }));
+};
+
+/** An item Data Dragon does not know is named by its id. */
+export const stackName = (
+  { count, itemId }: StackedItem,
+  findItem: FindAsset,
+  t: Translate
+): string => {
+  const item =
+    findItem(itemId)?.name ?? t("build.unknown.item", { id: itemId });
+  return count > 1 ? t("build.items.stack", { item, count }) : item;
 };
 
 export const ORDER_SLOTS = ["starter", "boots", "core"] as const;

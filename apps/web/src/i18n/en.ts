@@ -360,6 +360,44 @@ export const en = {
       title: "No game in progress",
       description: "Your next items appear here during a game.",
     },
+    reading: {
+      title: "Game found",
+      description:
+        "The game data is still being read. Your next items appear as soon as it is.",
+    },
+    title: "Game in progress",
+    alwaysOnTop: {
+      label: "Always on top",
+      on: "On",
+      off: "Off",
+      failed: "Always on top could not be changed",
+    },
+    unconfigured: {
+      title: "Coach server not set up",
+      description:
+        "Enter the server address and the access key to get your next items.",
+      action: "Open settings",
+    },
+    next: {
+      title: "Next items",
+      unknownChampion: {
+        title: "Champion not recognised",
+        description:
+          "The app cannot find this champion in Data Dragon, so it has nothing to suggest.",
+      },
+      complete: {
+        title: "Nothing left to buy",
+        description: "You own every item of the recommended build.",
+      },
+      error: { title: "Next items unavailable" },
+      outdated: {
+        title: "Next items not refreshed",
+        note: "What follows is the last answer received.",
+      },
+    },
+    owned: { title: "Your items" },
+    enemies: { none: "No enemy in this game." },
+    noItems: "No item yet",
   },
   reasons: {
     strong_on_patch: "Strong on this patch",

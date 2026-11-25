@@ -5,7 +5,7 @@ import { assignedRole, draftMode } from "../draft/request";
 
 /** The most allies and enemies the API accepts in one request. */
 const MAX_ALLIES = 4;
-const MAX_ENEMIES = 5;
+export const MAX_ENEMIES = 5;
 
 const localMember = (draft: DraftState) =>
   draft.myTeam.find(({ cellId }) => cellId === draft.localPlayerCellId);
@@ -33,10 +33,25 @@ export const buildChampionId = (draft: DraftState): number => {
 };
 
 /** One spelling for a team: the same champions always give the same request. */
-const teamChampionIds = (ids: readonly number[], limit: number): number[] =>
+export const teamChampionIds = (
+  ids: readonly number[],
+  limit: number
+): number[] =>
   [...new Set(ids.filter((id) => id > 0))]
     .toSorted((a, b) => a - b)
     .slice(0, limit);
+
+/**
+ * The role the local player's statistics are read for: the one the client
+ * assigned, else the one they picked. ARAM has no roles.
+ */
+export const buildRole = (
+  draft: DraftState,
+  pickedRole: Role | null
+): Role | null =>
+  draftMode(draft.queueId) === "aram"
+    ? null
+    : (assignedRole(draft) ?? pickedRole);
 
 /**
  * The request for the local player's build, or null while they have no
@@ -57,10 +72,7 @@ export const buildInput = (
   const enemies = draft.theirTeam.map((member) => member.championId);
   return {
     queueId: draft.queueId,
-    role:
-      draftMode(draft.queueId) === "aram"
-        ? null
-        : (assignedRole(draft) ?? pickedRole),
+    role: buildRole(draft, pickedRole),
     championId,
     allies: teamChampionIds(allies, MAX_ALLIES),
     enemies: teamChampionIds(enemies, MAX_ENEMIES),

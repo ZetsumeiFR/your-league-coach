@@ -1,20 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import type { Role } from "@your-league-coach/lol-data/roles";
 import { CapitalInflowTabs } from "@your-league-coach/ui/components/blocks/list-3/components/capital-inflow-tabs";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@your-league-coach/ui/components/empty";
 import { Badge } from "@your-league-coach/ui/components/reui/badge";
 import { Separator } from "@your-league-coach/ui/components/separator";
 import { Skeleton } from "@your-league-coach/ui/components/skeleton";
-import type { ComponentProps, ComponentType, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { appIcons } from "@/components/icons";
+import { PanelNotice } from "@/components/panel-notice";
 import {
   SETTINGS_LINK,
   ServerFailureAlert,
@@ -49,33 +42,6 @@ const PLACEHOLDER_ROWS = { ban: 5, pick: 10 } as const;
 const PLACEHOLDER_IDS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
 type PanelList = ComponentProps<typeof CapitalInflowTabs>["list"];
-
-interface PanelNoticeProps {
-  action?: ReactNode;
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-}
-
-function PanelNotice({
-  action,
-  description,
-  icon: Icon,
-  title,
-}: PanelNoticeProps) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Icon />
-        </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
-      </EmptyHeader>
-      {action ? <EmptyContent>{action}</EmptyContent> : null}
-    </Empty>
-  );
-}
 
 function SuggestionPlaceholder({ kind }: { kind: SuggestionKind }) {
   const ids = PLACEHOLDER_IDS.slice(0, PLACEHOLDER_ROWS[kind]);

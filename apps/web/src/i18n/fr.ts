@@ -355,6 +355,44 @@ export const fr: Dictionary = {
       title: "Aucune partie en cours",
       description: "Tes prochains objets s'affichent ici pendant une partie.",
     },
+    reading: {
+      title: "Partie détectée",
+      description:
+        "Les données de la partie sont encore en cours de lecture. Tes prochains objets s'affichent dès qu'elles sont lues.",
+    },
+    title: "Partie en cours",
+    alwaysOnTop: {
+      label: "Toujours au premier plan",
+      on: "Activé",
+      off: "Désactivé",
+      failed: "Impossible de changer l'affichage au premier plan",
+    },
+    unconfigured: {
+      title: "Serveur de coaching à configurer",
+      description:
+        "Saisis l'adresse du serveur et la clé d'accès pour obtenir tes prochains objets.",
+      action: "Ouvrir les réglages",
+    },
+    next: {
+      title: "Prochains objets",
+      unknownChampion: {
+        title: "Champion non reconnu",
+        description:
+          "L'application ne retrouve pas ce champion dans Data Dragon\u00a0: elle n'a rien à suggérer.",
+      },
+      complete: {
+        title: "Plus rien à acheter",
+        description: "Tu possèdes tous les objets du build recommandé.",
+      },
+      error: { title: "Prochains objets indisponibles" },
+      outdated: {
+        title: "Prochains objets non actualisés",
+        note: "Ce qui suit est la dernière réponse reçue.",
+      },
+    },
+    owned: { title: "Tes objets" },
+    enemies: { none: "Aucun adversaire dans cette partie." },
+    noItems: "Aucun objet pour l'instant",
   },
   reasons: {
     strong_on_patch: "Bon sur le patch",

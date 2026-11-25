@@ -22,27 +22,40 @@ export const SETTINGS_LINK = cn(
   buttonVariants({ size: "sm", variant: "outline" })
 );
 
+const ICONS = {
+  destructive: appIcons.error,
+  warning: appIcons.warning,
+} as const;
+
 interface ServerFailureAlertProps {
   failure: ServerFailure;
   isRetrying: boolean;
+  /** What the screen still shows despite the failure. */
+  note?: string;
   retry: () => void;
   title: string;
+  /** "warning" where an earlier result stays on screen, "destructive" where nothing does. */
+  variant?: keyof typeof ICONS;
 }
 
 export function ServerFailureAlert({
   failure,
   isRetrying,
+  note,
   retry,
   title,
+  variant = "destructive",
 }: ServerFailureAlertProps) {
   const t = useT();
+  const Icon = ICONS[variant];
 
   return (
-    <Alert variant="destructive">
-      <appIcons.error />
+    <Alert role={variant === "warning" ? "status" : "alert"} variant={variant}>
+      <Icon />
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>
         <p>{t(`server.error.${failure}`)}</p>
+        {note ? <p>{note}</p> : null}
       </AlertDescription>
       <AlertAction>
         {failure === "unauthorized" ? (
